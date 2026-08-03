@@ -18,3 +18,5 @@ site/
 .env.*
 
 .vscode/
+
+NOTES.md

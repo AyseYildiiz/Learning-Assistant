@@ -13,6 +13,7 @@ dependencies = [
     "httpx2>=0.0.1",
     "pydantic-settings>=2.6",
     "pytest>=8.3",
+    "pypdf>=5.0",
     "uvicorn[standard]>=0.30",
 ]
 
@@ -44,3 +45,9 @@ files = ["src", "tests"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.3.0",
+    "ruff>=0.16.1",
+]
