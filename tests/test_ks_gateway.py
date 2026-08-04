@@ -7,6 +7,47 @@ from learning_assistant.question_generation import generate_multiple_choice_ques
 from learning_assistant.settings import GatewaySettings
 
 
+def test_ks_gateway_error_includes_response_without_secrets() -> None:
+    settings = GatewaySettings.model_validate(
+        {
+            "KS_CLIENT_ID": "client-id",
+            "KS_CLIENT_SECRET": "client-secret",
+            "KS_BASE_URL": "https://gateway.example.test",
+        }
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/auth/token":
+            return httpx.Response(
+                200,
+                json={
+                    "access_token": "token-123",
+                    "token_type": "bearer",
+                    "expires_in": 3600,
+                },
+                request=request,
+            )
+
+        return httpx.Response(
+            400,
+            json={"detail": "model is not available"},
+            request=request,
+        )
+
+    client = KSGatewayClient(settings=settings, transport=httpx.MockTransport(handler))
+
+    try:
+        client.infer("Generate a question", model="GPT-5.5")
+    except RuntimeError as error:
+        message = str(error)
+    else:
+        raise AssertionError("Expected a RuntimeError")
+
+    assert "HTTP 400" in message
+    assert "model is not available" in message
+    assert "client-secret" not in message
+
+
 def test_ks_gateway_client_caches_token_and_extracts_ai_answer() -> None:
     auth_calls = 0
     infer_calls = 0

@@ -42,7 +42,9 @@ def test_repository_saves_question_and_returns_due_flashcards(tmp_path: Path) ->
     assert due_flashcards[0].box_level == 1
 
 
-def test_save_generated_question_with_flashcard_creates_new_card(tmp_path: Path) -> None:
+def test_save_generated_question_with_flashcard_creates_new_card(
+    tmp_path: Path,
+) -> None:
     repository = SQLiteRepository(tmp_path / "study.db")
     now = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
     generated_question = MultipleChoiceQuestion(

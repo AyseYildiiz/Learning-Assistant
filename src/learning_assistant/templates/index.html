@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Learning Assistant</title>
+  </head>
+  <body>
+    <main>
+      <h1>Learning Assistant</h1>
+      <p>Select a source PDF to start a quiz.</p>
+      {% if source_pdfs %}
+        <ul>
+          {% for source_pdf in source_pdfs %}
+            <li><a href="/quiz/{{ source_pdf | urlencode }}">{{ source_pdf }}</a></li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p>No generated questions are stored yet.</p>
+      {% endif %}
+    </main>
+  </body>
+</html>

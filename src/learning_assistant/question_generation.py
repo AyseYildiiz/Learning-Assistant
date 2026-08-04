@@ -27,11 +27,13 @@ def build_multiple_choice_prompt(
         prompt_lines.append("Do not repeat these earlier question stems:")
         prompt_lines.extend(f"- {question}" for question in previous_questions)
 
-    prompt_lines.extend([
-        "",
-        "Paragraph:",
-        paragraph.strip(),
-    ])
+    prompt_lines.extend(
+        [
+            "",
+            "Paragraph:",
+            paragraph.strip(),
+        ]
+    )
     return "\n".join(prompt_lines)
 
 

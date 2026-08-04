@@ -48,7 +48,7 @@ class SQLiteRepository:
         if db_path_text != ":memory:":
             Path(db_path_text).parent.mkdir(parents=True, exist_ok=True)
 
-        self._connection = sqlite3.connect(db_path_text)
+        self._connection = sqlite3.connect(db_path_text, check_same_thread=False)
         self._connection.row_factory = sqlite3.Row
         self._initialize_schema()
 
@@ -134,8 +134,26 @@ class SQLiteRepository:
         self,
         as_of: datetime | None = None,
     ) -> list[DueFlashcardRecord]:
-        reference_time = _ensure_utc_datetime(as_of or datetime.now(UTC))
+        return self._fetch_flashcards(as_of=as_of)
+
+    def get_due_flashcards_for_source_pdf(
+        self,
+        source_pdf: str | Path,
+        as_of: datetime | None = None,
+    ) -> list[DueFlashcardRecord]:
+        return self._fetch_flashcards(
+            as_of=as_of,
+            source_pdf=str(source_pdf),
+        )
+
+    def get_source_pdfs(self) -> list[str]:
         rows = self._connection.execute(
+            "SELECT DISTINCT source_pdf FROM questions ORDER BY source_pdf"
+        ).fetchall()
+        return [str(row["source_pdf"]) for row in rows]
+
+    def get_flashcard_by_id(self, flashcard_id: int) -> DueFlashcardRecord | None:
+        row = self._connection.execute(
             """
             SELECT
                 flashcards.id AS flashcard_id,
@@ -148,32 +166,15 @@ class SQLiteRepository:
                 questions.correct_index
             FROM flashcards
             JOIN questions ON questions.id = flashcards.question_id
-            WHERE flashcards.next_review_at <= ?
-            ORDER BY flashcards.next_review_at ASC, flashcards.id ASC
+            WHERE flashcards.id = ?
             """,
-            (_serialize_datetime(reference_time),),
-        ).fetchall()
+            (flashcard_id,),
+        ).fetchone()
 
-        due_flashcards: list[DueFlashcardRecord] = []
-        for row in rows:
-            options = _deserialize_options(row["options"])
-            correct_index = int(row["correct_index"])
-            due_flashcards.append(
-                DueFlashcardRecord(
-                    flashcard_id=int(row["flashcard_id"]),
-                    question_id=int(row["question_id"]),
-                    source_pdf=str(row["source_pdf"]),
-                    question_text=str(row["question_text"]),
-                    options=options,
-                    correct_index=correct_index,
-                    box_level=int(row["box_level"]),
-                    next_review_at=_parse_datetime(str(row["next_review_at"])),
-                    front_text=str(row["question_text"]),
-                    back_text=options[correct_index],
-                )
-            )
+        if row is None:
+            return None
 
-        return due_flashcards
+        return self._row_to_due_flashcard(row)
 
     def _initialize_schema(self) -> None:
         with self._connection:
@@ -200,6 +201,55 @@ class SQLiteRepository:
                     ON flashcards(next_review_at);
                 """
             )
+
+    def _fetch_flashcards(
+        self,
+        as_of: datetime | None = None,
+        source_pdf: str | None = None,
+    ) -> list[DueFlashcardRecord]:
+        reference_time = _ensure_utc_datetime(as_of or datetime.now(UTC))
+        query = [
+            "SELECT",
+            "    flashcards.id AS flashcard_id,",
+            "    flashcards.question_id,",
+            "    flashcards.box_level,",
+            "    flashcards.next_review_at,",
+            "    questions.source_pdf,",
+            "    questions.question_text,",
+            "    questions.options,",
+            "    questions.correct_index",
+            "FROM flashcards",
+            "JOIN questions ON questions.id = flashcards.question_id",
+        ]
+        parameters: list[object] = []
+        where_clauses: list[str] = ["flashcards.next_review_at <= ?"]
+        parameters.append(_serialize_datetime(reference_time))
+
+        if source_pdf is not None:
+            where_clauses.append("questions.source_pdf = ?")
+            parameters.append(source_pdf)
+
+        query.extend(["WHERE", " AND ".join(where_clauses)])
+        query.append("ORDER BY flashcards.next_review_at ASC, flashcards.id ASC")
+
+        rows = self._connection.execute("\n".join(query), tuple(parameters)).fetchall()
+        return [self._row_to_due_flashcard(row) for row in rows]
+
+    def _row_to_due_flashcard(self, row: sqlite3.Row) -> DueFlashcardRecord:
+        options = _deserialize_options(str(row["options"]))
+        correct_index = int(row["correct_index"])
+        return DueFlashcardRecord(
+            flashcard_id=int(row["flashcard_id"]),
+            question_id=int(row["question_id"]),
+            source_pdf=str(row["source_pdf"]),
+            question_text=str(row["question_text"]),
+            options=options,
+            correct_index=correct_index,
+            box_level=int(row["box_level"]),
+            next_review_at=_parse_datetime(str(row["next_review_at"])),
+            front_text=str(row["question_text"]),
+            back_text=options[correct_index],
+        )
 
     def _insert_question(
         self,

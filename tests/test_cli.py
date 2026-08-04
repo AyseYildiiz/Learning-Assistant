@@ -36,7 +36,9 @@ def _write_text_pdf(path: Path, text: str) -> None:
 
 def test_run_pipeline_generates_five_questions(tmp_path: Path) -> None:
     pdf_path = tmp_path / "sample.pdf"
-    _write_text_pdf(pdf_path, "Photosynthesis converts light energy into chemical energy.")
+    _write_text_pdf(
+        pdf_path, "Photosynthesis converts light energy into chemical energy."
+    )
 
     responses = [
         '{"question":"What does photosynthesis convert?","options":["Light into energy","Water into air","Heat into sound","Soil into roots"],"correct_index":0}',

@@ -1,0 +1,41 @@
+<div id="quiz-panel">
+  <header>
+    <h1>Quiz</h1>
+    <p>Source: {{ pdf_id }}</p>
+    <p>Correct: {{ correct_count }} | Incorrect: {{ incorrect_count }}</p>
+  </header>
+
+  {% if feedback_message %}
+    <p>{{ feedback_message }}</p>
+  {% endif %}
+
+  {% if flashcard %}
+    <section>
+      <h2>{{ flashcard.question_text }}</h2>
+      <form method="post" action="{{ answer_url }}" hx-post="{{ answer_url }}" hx-target="#quiz-panel" hx-swap="outerHTML">
+        <input type="hidden" name="flashcard_id" value="{{ flashcard.flashcard_id }}">
+        <input type="hidden" name="correct_count" value="{{ correct_count }}">
+        <input type="hidden" name="incorrect_count" value="{{ incorrect_count }}">
+
+        <div>
+          {% for option in flashcard.options %}
+            <label>
+              <input type="radio" name="selected_index" value="{{ loop.index0 }}" required>
+              {{ option }}
+            </label>
+            <br>
+          {% endfor %}
+        </div>
+
+        <button type="submit">Submit answer</button>
+      </form>
+    </section>
+  {% else %}
+    {% if completed %}
+      <p>Quiz complete.</p>
+      <p>Final score: {{ correct_count }} correct, {{ incorrect_count }} incorrect.</p>
+    {% else %}
+      <p>No flashcards are due right now.</p>
+    {% endif %}
+  {% endif %}
+</div>

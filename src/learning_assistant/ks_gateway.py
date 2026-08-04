@@ -22,6 +22,25 @@ class InferResponse(BaseModel):
     ai_answer: str
 
 
+def _raise_for_status(response: httpx.Response, settings: GatewaySettings) -> None:
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as error:
+        response_text = response.text.strip() or "No response body was returned."
+        if len(response_text) > 1000:
+            response_text = f"{response_text[:1000]}..."
+
+        for secret in (settings.client_id, settings.client_secret):
+            if secret:
+                response_text = response_text.replace(secret, "[redacted]")
+
+        raise RuntimeError(
+            "KS AI Gateway request failed: "
+            f"{response.request.method} {response.request.url.path} "
+            f"returned HTTP {response.status_code}. Response: {response_text}"
+        ) from error
+
+
 class MultipleChoiceQuestion(BaseModel):
     question: str
     options: list[str]
@@ -64,10 +83,12 @@ class KSGatewayClient:
                 "client_secret": self._settings.client_secret,
             },
         )
-        response.raise_for_status()
+        _raise_for_status(response, self._settings)
 
         token_response = TokenResponse.model_validate(response.json())
-        expires_at = datetime.now(UTC) + timedelta(seconds=max(token_response.expires_in - 30, 0))
+        expires_at = datetime.now(UTC) + timedelta(
+            seconds=max(token_response.expires_in - 30, 0)
+        )
         self._token_cache = _TokenCache(
             access_token=token_response.access_token,
             expires_at=expires_at,
@@ -89,7 +110,7 @@ class KSGatewayClient:
             headers={"Authorization": f"Bearer {token}"},
             json=payload,
         )
-        response.raise_for_status()
+        _raise_for_status(response, self._settings)
 
         infer_response = InferResponse.model_validate(response.json())
         return infer_response.ai_answer

@@ -21,7 +21,7 @@ def test_real_gateway_integration() -> None:
     try:
         prompt = (
             "You are generating exactly one multiple-choice question from a single paragraph. "
-            "Return ONLY JSON using the schema {\"question\": str, \"options\": list[str], \"correct_index\": int}. "
+            'Return ONLY JSON using the schema {"question": str, "options": list[str], "correct_index": int}. '
             "Provide exactly 4 options. The correct_index must be zero-based.\n\nParagraph:\n"
             "A typical fluffy cloud actually weighs around one million tonnes."
             ##The Earth is the third planet from the Sun and is the only known planet to support life.

@@ -48,7 +48,9 @@ def test_question_generation_handles_fenced_json() -> None:
     )
     client = KSGatewayClient(settings=settings, transport=httpx.MockTransport(handler))
 
-    question = generate_multiple_choice_question("Planets move around the Sun.", client=client)
+    question = generate_multiple_choice_question(
+        "Planets move around the Sun.", client=client
+    )
 
     print("Raw AI answer:")
     print(

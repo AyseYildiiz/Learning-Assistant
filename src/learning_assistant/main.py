@@ -1,8 +1,3 @@
-from fastapi import FastAPI
+from learning_assistant.web import app
 
-app = FastAPI(title="Learning Assistant")
-
-
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"message": "Hello, world"}
+__all__ = ["app"]
