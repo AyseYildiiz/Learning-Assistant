@@ -70,3 +70,33 @@ def test_save_generated_question_with_flashcard_creates_new_card(tmp_path: Path)
     assert len(due_flashcards) == 1
     assert due_flashcards[0].front_text == generated_question.question
     assert due_flashcards[0].back_text == "Mars"
+
+
+def test_update_flashcard_review_advances_and_resets_boxes(tmp_path: Path) -> None:
+    repository = SQLiteRepository(tmp_path / "study.db")
+    reviewed_at = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
+
+    try:
+        flashcard = repository.save_flashcard(
+            question_id=1,
+            box_level=1,
+            next_review_at=reviewed_at,
+        )
+
+        promoted_flashcard = repository.update_flashcard_review(
+            flashcard_id=flashcard.id,
+            correct=True,
+            reviewed_at=reviewed_at,
+        )
+        reset_flashcard = repository.update_flashcard_review(
+            flashcard_id=flashcard.id,
+            correct=False,
+            reviewed_at=reviewed_at,
+        )
+    finally:
+        repository.close()
+
+    assert promoted_flashcard.box_level == 2
+    assert promoted_flashcard.next_review_at == reviewed_at + timedelta(days=3)
+    assert reset_flashcard.box_level == 1
+    assert reset_flashcard.next_review_at == reviewed_at + timedelta(days=1)

@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from learning_assistant.ks_gateway import MultipleChoiceQuestion
+
+_LEITNER_INTERVALS_DAYS: tuple[int, ...] = (1, 3, 7, 14, 30)
 
 
 @dataclass(slots=True)
@@ -80,6 +82,53 @@ class SQLiteRepository:
                 box_level=box_level,
                 next_review_at=next_review_at,
             )
+
+    def update_flashcard_review(
+        self,
+        flashcard_id: int,
+        correct: bool,
+        reviewed_at: datetime | None = None,
+    ) -> FlashcardRecord:
+        current_time = _ensure_utc_datetime(reviewed_at or datetime.now(UTC))
+        row = self._connection.execute(
+            """
+            SELECT question_id, box_level
+            FROM flashcards
+            WHERE id = ?
+            """,
+            (flashcard_id,),
+        ).fetchone()
+
+        if row is None:
+            raise ValueError(f"Flashcard {flashcard_id} does not exist")
+
+        current_box_level = int(row["box_level"])
+        next_box_level, next_review_at = _calculate_leitner_schedule(
+            current_box_level=current_box_level,
+            correct=correct,
+            reviewed_at=current_time,
+        )
+
+        with self._connection:
+            self._connection.execute(
+                """
+                UPDATE flashcards
+                SET box_level = ?, next_review_at = ?
+                WHERE id = ?
+                """,
+                (
+                    next_box_level,
+                    _serialize_datetime(next_review_at),
+                    flashcard_id,
+                ),
+            )
+
+        return FlashcardRecord(
+            id=flashcard_id,
+            question_id=int(row["question_id"]),
+            box_level=next_box_level,
+            next_review_at=next_review_at,
+        )
 
     def get_due_flashcards(
         self,
@@ -280,3 +329,22 @@ def _serialize_datetime(value: datetime) -> str:
 def _parse_datetime(raw_value: str) -> datetime:
     parsed_value = datetime.fromisoformat(raw_value)
     return _ensure_utc_datetime(parsed_value)
+
+
+def _calculate_leitner_schedule(
+    *,
+    current_box_level: int,
+    correct: bool,
+    reviewed_at: datetime,
+) -> tuple[int, datetime]:
+    if current_box_level < 1:
+        raise ValueError("current_box_level must be at least 1")
+
+    if correct:
+        next_box_level = min(current_box_level + 1, len(_LEITNER_INTERVALS_DAYS))
+        delay_days = _LEITNER_INTERVALS_DAYS[next_box_level - 1]
+    else:
+        next_box_level = 1
+        delay_days = 1
+
+    return next_box_level, reviewed_at + timedelta(days=delay_days)
