@@ -5,25 +5,125 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Flashcards | {{ pdf_id }}</title>
     <style>
-      body { margin: 0; background: #f4f7fb; color: #162033; font: 16px/1.5 system-ui, sans-serif; }
-      main { max-width: 860px; margin: 0 auto; padding: 32px 20px 64px; }
-      header { margin-bottom: 28px; }
-      h1 { margin-bottom: 4px; }
-      .muted { color: #64748b; }
-      .grid { display: grid; gap: 16px; }
-      article { padding: 22px; background: white; border: 1px solid #dbe4ef; border-radius: 8px; box-shadow: 0 12px 30px rgba(30, 55, 90, .06); }
-      article h2 { margin-top: 0; font-size: 1.05rem; }
-      article p { margin-bottom: 0; }
-      .answer { padding-top: 14px; border-top: 1px solid #edf1f6; color: #087443; }
-      a { color: #3157d5; }
+      :root {
+        --ink: #162033;
+        --muted: #64748b;
+        --line: #dbe4ef;
+        --primary: #3157d5;
+        --surface: #ffffff;
+        --canvas: #f4f7fb;
+        --success: #087443;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        background: var(--canvas);
+        color: var(--ink);
+        font: 16px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+      }
+
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 32px 20px 64px;
+      }
+
+      header {
+        margin-bottom: 28px;
+      }
+
+      h1 {
+        margin: 0 0 4px;
+        font-size: 1.8rem;
+      }
+
+      .muted {
+        color: var(--muted);
+        margin: 0 0 12px;
+      }
+
+      .header-links {
+        display: flex;
+        gap: 12px;
+      }
+
+      .header-links a {
+        color: var(--primary);
+        font-weight: 600;
+        text-decoration: none;
+      }
+
+      .header-links a:hover {
+        text-decoration: underline;
+      }
+
+      .grid {
+        display: grid;
+        gap: 16px;
+      }
+
+      /* Fixed padding + a minimum height keep every card the same size
+         regardless of how many cards are on the page or how long the
+         question/answer text is. */
+      article {
+        min-height: 9rem;
+        padding: 22px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        box-shadow: 0 12px 30px rgba(30, 55, 90, .06);
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      article h2 {
+        margin: 0;
+        font-size: 1.05rem;
+        line-height: 1.4;
+      }
+
+      article p {
+        margin: 0;
+      }
+
+      .answer {
+        padding-top: 14px;
+        border-top: 1px solid #edf1f6;
+        color: var(--success);
+      }
+
+      .empty {
+        color: var(--muted);
+        padding: 40px 0;
+        text-align: center;
+      }
     </style>
   </head>
   <body>
     <main>
-      <header><h1>Flashcards</h1><p class="muted">Due cards from {{ pdf_id }}</p><a href="/quiz/{{ pdf_id | urlencode }}">Start quiz</a> | <a href="/">Back to library</a></header>
+      <header>
+        <h1>Flashcards</h1>
+        <p class="muted">Due cards from {{ pdf_id }}</p>
+        <div class="header-links">
+          <a href="/quiz/{{ pdf_id | urlencode }}">Start quiz</a>
+          <a href="/">Back to library</a>
+        </div>
+      </header>
       {% if flashcards %}
-        <section class="grid">{% for flashcard in flashcards %}<article><h2>{{ loop.index }}. {{ flashcard.front_text }}</h2><p class="answer"><strong>Answer:</strong> {{ flashcard.back_text }}</p></article>{% endfor %}</section>
-      {% else %}<p class="muted">There are no cards due for review right now.</p>{% endif %}
+        <section class="grid">
+          {% for flashcard in flashcards %}
+            <article>
+              <h2>{{ loop.index }}. {{ flashcard.front_text }}</h2>
+              <p class="answer"><strong>Answer:</strong> {{ flashcard.back_text }}</p>
+            </article>
+          {% endfor %}
+        </section>
+      {% else %}
+        <p class="empty">There are no cards due for review right now.</p>
+      {% endif %}
     </main>
   </body>
 </html>

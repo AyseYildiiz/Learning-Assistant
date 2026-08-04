@@ -64,7 +64,7 @@
   </head>
   <body>
     <main class="shell">
-      <div class="brand"><div class="brand-mark">S</div><div><strong>StudyFlow</strong><span>Turn reading into active recall</span></div></div>
+      <div class="brand"><div class="brand-mark">S</div><div><strong>Learning Assistant</strong><span>Turn reading into active recall</span></div></div>
       <section class="hero">
         <div>
           <h1>Learn from your PDFs, one question at a time.</h1>
@@ -74,7 +74,7 @@
           <h2>Create a study set</h2>
           <p class="hint">PDF files up to 10 MB. Text-based PDFs work best.</p>
           <label class="dropzone" for="pdf-file"><strong>Choose your PDF</strong><span class="hint">or drop it here</span><input id="pdf-file" name="file" type="file" accept="application/pdf,.pdf" required></label>
-          <div class="controls"><label for="question-count">Questions<select id="question-count" name="count"><option value="5" selected>5 questions</option><option value="10">10 questions</option><option value="15">15 questions</option><option value="20">20 questions</option></select></label><button id="generate-button" type="submit">Generate set</button></div>
+          <div class="controls"><label for="question-count">Questions<select id="question-count" name="count"><option value="5" selected>5</option><option value="10">10</option><option value="15">15</option><option value="20">20</option></select></label><button id="generate-button" type="submit">Generate set</button></div>
           <p id="upload-status" class="hint" hidden>Extracting text and creating your quiz...</p>
           {% if error_message %}<p class="message error" role="alert">{{ error_message }}</p>{% endif %}
           {% if success_message %}<p class="message success" role="status">{{ success_message }}</p>{% endif %}

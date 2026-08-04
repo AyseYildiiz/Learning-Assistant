@@ -43,29 +43,28 @@
       }
 
       .page-shell {
-        max-width: 56rem;
+        max-width: 720px;
+        max-height: 600px;
         margin: 0 auto;
         background: var(--surface);
         border: 1px solid rgba(255, 255, 255, 0.42);
         border-radius: 1.5rem;
-        padding: 0;
         box-shadow: var(--shadow);
         backdrop-filter: blur(18px);
-        overflow: hidden;
+        overflow: auto;
+        scrollbar-width: none; 
+        -ms-overflow-style: none; 
+        
       }
-
-      .page-frame {
-        padding: 1.5rem;
-      }
+      
+     
 
       @media (min-width: 768px) {
         body {
           padding: 3rem;
         }
 
-        .page-frame {
-          padding: 2rem;
-        }
+        
       }
     </style>
   </head>
