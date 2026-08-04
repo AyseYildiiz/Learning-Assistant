@@ -21,7 +21,7 @@ def test_question_generation_handles_fenced_json() -> None:
 
         if request.url.path == "/ai/infer":
             payload = json.loads(request.content.decode("utf-8"))
-            assert payload["prompt"].startswith("You are generating exactly one")
+            assert payload["prompt"].startswith("You are generating question")
             return httpx.Response(
                 200,
                 json={
@@ -41,9 +41,9 @@ def test_question_generation_handles_fenced_json() -> None:
 
     settings = GatewaySettings.model_validate(
         {
-            "CLIENT_ID": "client-id",
-            "CLIENT_SECRET": "client-secret",
-            "BASE_URL": "https://gateway.example.test",
+            "KS_CLIENT_ID": "client-id",
+            "KS_CLIENT_SECRET": "client-secret",
+            "KS_BASE_URL": "https://gateway.example.test",
         }
     )
     client = KSGatewayClient(settings=settings, transport=httpx.MockTransport(handler))

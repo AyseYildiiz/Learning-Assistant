@@ -1,10 +1,11 @@
-import os
-import pytest
 import httpx
+import pytest
 
-from learning_assistant.ks_gateway import KSGatewayClient, parse_multiple_choice_question
+from learning_assistant.ks_gateway import (
+    KSGatewayClient,
+    parse_multiple_choice_question,
+)
 from learning_assistant.settings import GatewaySettings
-
 
 
 def test_real_gateway_integration() -> None:
@@ -23,6 +24,7 @@ def test_real_gateway_integration() -> None:
             "Return ONLY JSON using the schema {\"question\": str, \"options\": list[str], \"correct_index\": int}. "
             "Provide exactly 4 options. The correct_index must be zero-based.\n\nParagraph:\n"
             "A typical fluffy cloud actually weighs around one million tonnes."
+            ##The Earth is the third planet from the Sun and is the only known planet to support life.
         )
 
         try:

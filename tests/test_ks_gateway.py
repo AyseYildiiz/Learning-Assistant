@@ -44,9 +44,9 @@ def test_ks_gateway_client_caches_token_and_extracts_ai_answer() -> None:
 
     settings = GatewaySettings.model_validate(
         {
-            "CLIENT_ID": "client-id",
-            "CLIENT_SECRET": "client-secret",
-            "BASE_URL": "https://gateway.example.test",
+            "KS_CLIENT_ID": "client-id",
+            "KS_CLIENT_SECRET": "client-secret",
+            "KS_BASE_URL": "https://gateway.example.test",
         }
     )
     client = KSGatewayClient(settings=settings, transport=httpx.MockTransport(handler))

@@ -17,6 +17,9 @@ dependencies = [
     "uvicorn[standard]>=0.30",
 ]
 
+[project.scripts]
+learning-assistant = "learning_assistant.cli:main"
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 

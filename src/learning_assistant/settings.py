@@ -1,4 +1,4 @@
-from pydantic import Field, model_validator
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,10 +9,22 @@ class GatewaySettings(BaseSettings):
         extra="ignore",
     )
 
-    client_id: str = Field(default="", validation_alias="CLIENT_ID")
-    client_secret: str = Field(default="", validation_alias="CLIENT_SECRET")
-    base_url: str = Field(default="", validation_alias="BASE_URL")
-    response_language: str = Field(default="en-US", validation_alias="RESPONSE_LANGUAGE")
+    client_id: str = Field(
+        default="",
+        validation_alias=AliasChoices("KS_CLIENT_ID", "CLIENT_ID"),
+    )
+    client_secret: str = Field(
+        default="",
+        validation_alias=AliasChoices("KS_CLIENT_SECRET", "CLIENT_SECRET"),
+    )
+    base_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("KS_BASE_URL", "BASE_URL"),
+    )
+    response_language: str = Field(
+        default="en-US",
+        validation_alias=AliasChoices("KS_RESPONSE_LANGUAGE", "RESPONSE_LANGUAGE"),
+    )
 
     @model_validator(mode="after")
     def validate_required_values(self) -> "GatewaySettings":
