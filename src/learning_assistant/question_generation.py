@@ -58,8 +58,23 @@ def generate_multiple_choice_questions(
                 total_questions=count,
                 previous_questions=[question.question for question in questions],
             )
-            ai_answer = gateway_client.infer(prompt=prompt, model=model)
-            questions.append(parse_multiple_choice_question(ai_answer))
+            last_error: ValueError | None = None
+            for attempt in range(2):
+                ai_answer = gateway_client.infer(prompt=prompt, model=model)
+                try:
+                    questions.append(parse_multiple_choice_question(ai_answer))
+                    break
+                except ValueError as error:
+                    last_error = error
+                    if attempt == 0:
+                        prompt = (
+                            f"{prompt}\n\nYour previous response was invalid. "
+                            "Return only valid JSON matching the required schema."
+                        )
+            else:
+                raise ValueError(
+                    f"Could not generate valid JSON for question {question_number}."
+                ) from last_error
     finally:
         if own_client:
             gateway_client.close()

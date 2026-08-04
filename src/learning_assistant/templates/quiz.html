@@ -6,27 +6,74 @@
     <title>Learning Assistant Quiz</title>
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
     <style>
+      :root {
+        --bg-start: #07111f;
+        --bg-end: #121b2f;
+        --surface: rgba(255, 255, 255, 0.92);
+        --surface-strong: #ffffff;
+        --text-primary: #0f172a;
+        --text-secondary: #475569;
+        --border: rgba(148, 163, 184, 0.22);
+        --accent: #2563eb;
+        --accent-strong: #1d4ed8;
+        --accent-soft: rgba(37, 99, 235, 0.1);
+        --success: #15803d;
+        --warning: #b45309;
+        --shadow: 0 30px 80px rgba(2, 8, 23, 0.38);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        color-scheme: light;
+      }
+
       body {
-        font-family: Arial, sans-serif;
+        font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
         margin: 0;
+        min-height: 100vh;
         padding: 2rem;
-        background: #f7f7f8;
-        color: #111827;
+        color: var(--text-primary);
+        background:
+          radial-gradient(circle at top left, rgba(37, 99, 235, 0.28), transparent 30%),
+          radial-gradient(circle at top right, rgba(14, 165, 233, 0.18), transparent 28%),
+          linear-gradient(160deg, var(--bg-start), var(--bg-end));
       }
 
       .page-shell {
-        max-width: 42rem;
+        max-width: 56rem;
         margin: 0 auto;
-        background: white;
-        border-radius: 1rem;
-        padding: 2rem;
-        box-shadow: 0 20px 50px rgba(15, 23, 42, 0.08);
+        background: var(--surface);
+        border: 1px solid rgba(255, 255, 255, 0.42);
+        border-radius: 1.5rem;
+        padding: 0;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(18px);
+        overflow: hidden;
+      }
+
+      .page-frame {
+        padding: 1.5rem;
+      }
+
+      @media (min-width: 768px) {
+        body {
+          padding: 3rem;
+        }
+
+        .page-frame {
+          padding: 2rem;
+        }
       }
     </style>
   </head>
   <body>
     <main class="page-shell">
-      {% include "quiz_panel.html" %}
+      <div class="page-frame">
+        {% include "quiz_panel.html" %}
+      </div>
     </main>
   </body>
 </html>

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Flashcards | {{ pdf_id }}</title>
+    <style>
+      body { margin: 0; background: #f4f7fb; color: #162033; font: 16px/1.5 system-ui, sans-serif; }
+      main { max-width: 860px; margin: 0 auto; padding: 32px 20px 64px; }
+      header { margin-bottom: 28px; }
+      h1 { margin-bottom: 4px; }
+      .muted { color: #64748b; }
+      .grid { display: grid; gap: 16px; }
+      article { padding: 22px; background: white; border: 1px solid #dbe4ef; border-radius: 8px; box-shadow: 0 12px 30px rgba(30, 55, 90, .06); }
+      article h2 { margin-top: 0; font-size: 1.05rem; }
+      article p { margin-bottom: 0; }
+      .answer { padding-top: 14px; border-top: 1px solid #edf1f6; color: #087443; }
+      a { color: #3157d5; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header><h1>Flashcards</h1><p class="muted">Due cards from {{ pdf_id }}</p><a href="/quiz/{{ pdf_id | urlencode }}">Start quiz</a> | <a href="/">Back to library</a></header>
+      {% if flashcards %}
+        <section class="grid">{% for flashcard in flashcards %}<article><h2>{{ loop.index }}. {{ flashcard.front_text }}</h2><p class="answer"><strong>Answer:</strong> {{ flashcard.back_text }}</p></article>{% endfor %}</section>
+      {% else %}<p class="muted">There are no cards due for review right now.</p>{% endif %}
+    </main>
+  </body>
+</html>

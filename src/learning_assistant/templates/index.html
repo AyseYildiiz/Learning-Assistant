@@ -3,21 +3,94 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Learning Assistant</title>
+    <title>StudyFlow | PDF Learning Assistant</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #162033;
+        --muted: #64748b;
+        --line: #dbe4ef;
+        --primary: #3157d5;
+        --primary-dark: #2341aa;
+        --surface: #ffffff;
+        --canvas: #f4f7fb;
+        --success: #087443;
+        --danger: #b42318;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-width: 320px;
+        background: var(--canvas);
+        color: var(--ink);
+        font: 16px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+      }
+      .shell { max-width: 1080px; margin: 0 auto; padding: 28px 20px 64px; }
+      .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 56px; }
+      .brand-mark {
+        display: grid; place-items: center; width: 42px; height: 42px;
+        border-radius: 8px; background: var(--primary); color: white; font-weight: 800;
+      }
+      .brand strong { display: block; font-size: 1.05rem; }
+      .brand span { color: var(--muted); font-size: .85rem; }
+      .hero { display: grid; grid-template-columns: 1.1fr .9fr; gap: 52px; align-items: center; }
+      h1 { margin: 0 0 16px; max-width: 620px; font-size: clamp(2.25rem, 5vw, 4.5rem); line-height: 1.03; letter-spacing: 0; }
+      .lede { max-width: 520px; margin: 0; color: var(--muted); font-size: 1.08rem; }
+      .upload-card, .library-card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 18px 50px rgba(30, 55, 90, .08); }
+      .upload-card { padding: 26px; }
+      .upload-card h2, .library-card h2 { margin: 0 0 6px; font-size: 1.2rem; }
+      .hint { color: var(--muted); font-size: .9rem; margin: 0 0 20px; }
+      .dropzone { display: grid; place-items: center; padding: 28px 16px; border: 1.5px dashed #9db0c8; border-radius: 8px; background: #f8faff; text-align: center; cursor: pointer; }
+      .dropzone:hover { border-color: var(--primary); background: #f1f5ff; }
+      .dropzone input { width: 100%; margin-top: 12px; }
+      .dropzone strong { display: block; }
+      .controls { display: flex; gap: 12px; align-items: end; margin-top: 16px; }
+      .controls label { flex: 1; color: var(--muted); font-size: .85rem; }
+      select, button { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 11px 12px; font: inherit; }
+      button { border: 0; background: var(--primary); color: white; cursor: pointer; font-weight: 700; }
+      button:hover { background: var(--primary-dark); }
+      .library-card { margin-top: 48px; padding: 26px; }
+      .library-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 20px 0 0; padding: 0; list-style: none; }
+      .library-list a { display: block; padding: 15px 16px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); text-decoration: none; font-weight: 650; }
+      .library-list a:hover { border-color: var(--primary); color: var(--primary); }
+      .message { margin: 18px 0 0; padding: 12px 14px; border-radius: 8px; }
+      .success { background: #eaf8f0; color: var(--success); }
+      .error { background: #fff0ef; color: var(--danger); }
+      .empty { color: var(--muted); }
+      @media (max-width: 760px) { .hero { grid-template-columns: 1fr; gap: 28px; } .brand { margin-bottom: 32px; } .controls { align-items: stretch; flex-direction: column; } }
+    </style>
   </head>
   <body>
-    <main>
-      <h1>Learning Assistant</h1>
-      <p>Select a source PDF to start a quiz.</p>
-      {% if source_pdfs %}
-        <ul>
-          {% for source_pdf in source_pdfs %}
-            <li><a href="/quiz/{{ source_pdf | urlencode }}">{{ source_pdf }}</a></li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p>No generated questions are stored yet.</p>
-      {% endif %}
+    <main class="shell">
+      <div class="brand"><div class="brand-mark">S</div><div><strong>StudyFlow</strong><span>Turn reading into active recall</span></div></div>
+      <section class="hero">
+        <div>
+          <h1>Learn from your PDFs, one question at a time.</h1>
+          <p class="lede">Upload a study document and get a focused quiz with spaced-repetition flashcards in seconds.</p>
+        </div>
+        <form id="upload-form" class="upload-card" method="post" action="/upload" enctype="multipart/form-data">
+          <h2>Create a study set</h2>
+          <p class="hint">PDF files up to 10 MB. Text-based PDFs work best.</p>
+          <label class="dropzone" for="pdf-file"><strong>Choose your PDF</strong><span class="hint">or drop it here</span><input id="pdf-file" name="file" type="file" accept="application/pdf,.pdf" required></label>
+          <div class="controls"><label for="question-count">Questions<select id="question-count" name="count"><option value="5" selected>5 questions</option><option value="10">10 questions</option><option value="15">15 questions</option><option value="20">20 questions</option></select></label><button id="generate-button" type="submit">Generate set</button></div>
+          <p id="upload-status" class="hint" hidden>Extracting text and creating your quiz...</p>
+          {% if error_message %}<p class="message error" role="alert">{{ error_message }}</p>{% endif %}
+          {% if success_message %}<p class="message success" role="status">{{ success_message }}</p>{% endif %}
+        </form>
+      </section>
+      <section class="library-card">
+        <h2>Your study sets</h2>
+        {% if source_pdfs %}<ul class="library-list">{% for source_pdf in source_pdfs %}<li><a href="/quiz/{{ source_pdf | urlencode }}">{{ source_pdf }} <span aria-hidden="true">-&gt;</span></a></li>{% endfor %}</ul>{% else %}<p class="empty">Your generated study sets will appear here.</p>{% endif %}
+      </section>
     </main>
+    <script>
+      document.getElementById("upload-form").addEventListener("submit", function () {
+        document.getElementById("generate-button").disabled = true;
+        document.getElementById("generate-button").textContent = "Generating...";
+        document.getElementById("upload-status").hidden = false;
+      });
+    </script>
   </body>
 </html>
