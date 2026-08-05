@@ -110,6 +110,7 @@
       .controls { display: flex; gap: 12px; align-items: end; margin-top: 16px; }
       .controls label { flex: 1; color: var(--muted); font-size: .85rem; }
       select, button { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; font: inherit; }
+      .count-select { min-width: 110px; }
       button { border: 0; background: var(--primary); color: white; cursor: pointer; font-weight: 700; }
       button:hover { background: var(--primary-dark); }
       .library-card { margin-top: 48px; padding: 26px; }
@@ -190,7 +191,11 @@
           <h2>Create a study set</h2>
           <p class="hint">PDF files up to 10 MB. Text-based PDFs work best.</p>
           <label class="dropzone" for="pdf-file"><strong>Choose your PDF</strong><span class="hint">or drop it here</span><input id="pdf-file" name="file" type="file" accept="application/pdf,.pdf" required></label>
-          <div class="controls"><label for="question-count">Questions<select id="question-count" name="count"><option value="5" selected>5</option><option value="10">10</option><option value="15">15</option><option value="20">20</option></select></label><button id="generate-button" type="submit">Generate set</button></div>
+          <div class="controls">
+            <label for="mcq-count">Multiple choice<select id="mcq-count" class="count-select" name="mcq_count"><option value="0">0</option><option value="5" selected>5</option><option value="10">10</option><option value="15">15</option><option value="20">20</option></select></label>
+            <label for="fill-blank-count">Fill in the blank<select id="fill-blank-count" class="count-select" name="fill_blank_count"><option value="0" selected>0</option><option value="5">5</option><option value="10">10</option><option value="15">15</option><option value="20">20</option></select></label>
+            <button id="generate-button" type="submit">Generate set</button>
+          </div>
           <p id="upload-status" class="hint" hidden>Extracting text and creating your quiz...</p>
           {% if error_message %}<p class="message error" role="alert">{{ error_message }}</p>{% endif %}
           {% if success_message %}<p class="message success" role="status">{{ success_message }}</p>{% endif %}

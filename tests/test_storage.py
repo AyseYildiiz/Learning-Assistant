@@ -3,9 +3,10 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from learning_assistant.ks_gateway import MultipleChoiceQuestion
+from learning_assistant.ks_gateway import FillBlankQuestion, MultipleChoiceQuestion
 from learning_assistant.storage import (
     SQLiteRepository,
+    save_generated_fill_blank_with_flashcard,
     save_generated_question_with_flashcard,
 )
 
@@ -72,6 +73,32 @@ def test_save_generated_question_with_flashcard_creates_new_card(
     assert len(due_flashcards) == 1
     assert due_flashcards[0].front_text == generated_question.question
     assert due_flashcards[0].back_text == "Mars"
+
+
+def test_save_generated_fill_blank_with_flashcard_creates_new_card(
+    tmp_path: Path,
+) -> None:
+    repository = SQLiteRepository(tmp_path / "study.db")
+    now = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
+    generated_question = FillBlankQuestion(
+        question="Photosynthesis converts light into _____ energy.",
+        answer="chemical",
+    )
+
+    try:
+        question_record, flashcard_record = save_generated_fill_blank_with_flashcard(
+            repository=repository,
+            source_pdf=Path("biology.pdf"),
+            question=generated_question,
+            now=now,
+        )
+    finally:
+        repository.close()
+
+    assert question_record.question_type == "fill_blank"
+    assert question_record.options == ["chemical"]
+    assert question_record.correct_index == 0
+    assert flashcard_record.question_id == question_record.id
 
 
 def test_update_flashcard_review_advances_and_resets_boxes(tmp_path: Path) -> None:

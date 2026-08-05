@@ -47,6 +47,11 @@ class MultipleChoiceQuestion(BaseModel):
     correct_index: int
 
 
+class FillBlankQuestion(BaseModel):
+    question: str
+    answer: str
+
+
 @dataclass(slots=True)
 class _TokenCache:
     access_token: str
@@ -152,4 +157,25 @@ def parse_multiple_choice_question(raw_text: str) -> MultipleChoiceQuestion:
         except ValidationError as validation_error:
             raise ValueError(
                 "The gateway response did not match the multiple-choice question schema."
+            ) from validation_error
+
+
+def parse_fill_blank_question(raw_text: str) -> FillBlankQuestion:
+    candidate_text = _extract_json_candidate(raw_text)
+
+    try:
+        return FillBlankQuestion.model_validate_json(candidate_text)
+    except ValidationError:
+        try:
+            parsed_text = json.loads(candidate_text)
+        except json.JSONDecodeError as decode_error:
+            raise ValueError(
+                "The gateway response could not be parsed as a fill-in-the-blank question."
+            ) from decode_error
+
+        try:
+            return FillBlankQuestion.model_validate(parsed_text)
+        except ValidationError as validation_error:
+            raise ValueError(
+                "The gateway response did not match the fill-in-the-blank question schema."
             ) from validation_error

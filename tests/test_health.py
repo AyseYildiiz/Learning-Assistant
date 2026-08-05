@@ -67,7 +67,7 @@ def test_upload_pdf_generates_and_stores_flashcards(
         response = client.post(
             "/upload",
             files={"file": ("lesson.pdf", b"%PDF-1.7", "application/pdf")},
-            data={"count": "1"},
+            data={"mcq_count": "1"},
             follow_redirects=False,
         )
         location = response.headers["location"]

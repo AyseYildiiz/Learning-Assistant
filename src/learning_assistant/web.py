@@ -4,7 +4,7 @@ import os
 import re
 import secrets
 import tempfile
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any
 from urllib.parse import quote
@@ -16,10 +16,14 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from learning_assistant.ks_gateway import KSGatewayClient
 from learning_assistant.pdf_extract import extract_text
-from learning_assistant.question_generation import generate_multiple_choice_questions
+from learning_assistant.question_generation import (
+    generate_fill_blank_questions,
+    generate_multiple_choice_questions,
+)
 from learning_assistant.storage import (
     QuestionRecord,
     SQLiteRepository,
+    save_generated_fill_blank_with_flashcard,
     save_generated_question_with_flashcard,
 )
 
@@ -40,7 +44,10 @@ _DEFAULT_DATABASE_PATH = (
     Path(__file__).resolve().parent.parent / "data" / "learning_assistant.sqlite3"
 )
 _MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+_MAX_TOTAL_QUESTIONS = 20
 _QUIZ_STATES_KEY = "quiz_states"
+_SECONDS_PER_QUESTION = 40
+_MIN_QUIZ_SECONDS = 60
 _SET_ID_PATTERN = re.compile(
     r"^(?P<stem>.+)-(?P<stamp>\d{14})-(?P<token>[0-9a-f]{4})(?P<ext>\.pdf)$"
 )
@@ -94,12 +101,19 @@ async def upload_pdf(
     request: Request,
     file: Annotated[UploadFile, File(...)],
     repository: Annotated[SQLiteRepository, Depends(get_repository)],
-    count: Annotated[int, Form()] = 5,
+    mcq_count: Annotated[int, Form()] = 5,
+    fill_blank_count: Annotated[int, Form()] = 0,
 ) -> Response:
     try:
         filename, content = await _read_pdf_upload(file)
-        if count < 1 or count > 20:
-            raise ValueError("Choose between 1 and 20 questions.")
+        if mcq_count < 0 or fill_blank_count < 0:
+            raise ValueError("Question counts cannot be negative.")
+
+        total_count = mcq_count + fill_blank_count
+        if total_count < 1 or total_count > _MAX_TOTAL_QUESTIONS:
+            raise ValueError(
+                f"Choose between 1 and {_MAX_TOTAL_QUESTIONS} questions in total."
+            )
 
         temporary_path: Path | None = None
         try:
@@ -117,23 +131,36 @@ async def upload_pdf(
         if not extracted_text.strip():
             raise ValueError("No extractable text was found in this PDF.")
 
+        set_id = _make_set_id(filename)
         gateway_client = KSGatewayClient()
         try:
-            questions = generate_multiple_choice_questions(
-                paragraph=extracted_text,
-                count=count,
-                client=gateway_client,
-            )
+            if mcq_count > 0:
+                mcq_questions = generate_multiple_choice_questions(
+                    paragraph=extracted_text,
+                    count=mcq_count,
+                    client=gateway_client,
+                )
+                for mcq_question in mcq_questions:
+                    save_generated_question_with_flashcard(
+                        repository=repository,
+                        source_pdf=set_id,
+                        question=mcq_question,
+                    )
+
+            if fill_blank_count > 0:
+                fill_blank_questions = generate_fill_blank_questions(
+                    paragraph=extracted_text,
+                    count=fill_blank_count,
+                    client=gateway_client,
+                )
+                for fill_blank_question in fill_blank_questions:
+                    save_generated_fill_blank_with_flashcard(
+                        repository=repository,
+                        source_pdf=set_id,
+                        question=fill_blank_question,
+                    )
         finally:
             gateway_client.close()
-
-        set_id = _make_set_id(filename)
-        for question in questions:
-            save_generated_question_with_flashcard(
-                repository=repository,
-                source_pdf=set_id,
-                question=question,
-            )
 
     except (OSError, ValueError, RuntimeError) as error:
         return _render_home_page(
@@ -171,13 +198,39 @@ def _save_quiz_states(request: Request, states: dict[str, dict[str, Any]]) -> No
     request.session[_QUIZ_STATES_KEY] = states
 
 
+def _calculate_quiz_duration_seconds(total_questions: int) -> int:
+    return max(total_questions * _SECONDS_PER_QUESTION, _MIN_QUIZ_SECONDS)
+
+
+def _resolve_deadline_at(
+    existing_state: dict[str, Any] | None, total_questions: int
+) -> str:
+    if existing_state is not None:
+        deadline_at = existing_state.get("deadline_at")
+        if isinstance(deadline_at, str) and deadline_at:
+            return deadline_at
+
+    duration_seconds = _calculate_quiz_duration_seconds(total_questions)
+    deadline = datetime.now(UTC) + timedelta(seconds=duration_seconds)
+    return deadline.isoformat()
+
+
+def _current_question_number(total_questions: int, remaining_queue: list[int]) -> int:
+    if total_questions <= 0:
+        return 0
+    distinct_remaining = len(set(remaining_queue))
+    return min(total_questions - distinct_remaining + 1, total_questions)
+
+
 def _create_new_quiz_state(question_ids: list[int]) -> dict[str, Any]:
+    total_questions = len(question_ids)
     return {
         "queue": list(question_ids),
         "correct_count": 0,
         "incorrect_count": 0,
         "completed": False,
-        "total_questions": len(question_ids),
+        "total_questions": total_questions,
+        "deadline_at": _resolve_deadline_at(None, total_questions),
     }
 
 
@@ -199,14 +252,16 @@ def _load_or_initialize_quiz_state(
             if int(item) in valid_ids
         ]
         if queue:
+            total_questions = int(
+                existing_state.get("total_questions", len(question_ids))
+            )
             state = {
                 "queue": queue,
                 "correct_count": int(existing_state.get("correct_count", 0)),
                 "incorrect_count": int(existing_state.get("incorrect_count", 0)),
                 "completed": False,
-                "total_questions": int(
-                    existing_state.get("total_questions", len(question_ids))
-                ),
+                "total_questions": total_questions,
+                "deadline_at": _resolve_deadline_at(existing_state, total_questions),
             }
             states[set_id] = state
             _save_quiz_states(request, states)
@@ -255,6 +310,9 @@ def quiz_page(
             feedback_message=None,
             completed=True,
             score_out_of_100=score,
+            total_questions=state["total_questions"],
+            current_question_number=state["total_questions"],
+            quiz_deadline_iso=None,
         )
 
     return _render_quiz_page(
@@ -266,6 +324,11 @@ def quiz_page(
         feedback_message=None,
         completed=False,
         score_out_of_100=None,
+        total_questions=state["total_questions"],
+        current_question_number=_current_question_number(
+            state["total_questions"], queue
+        ),
+        quiz_deadline_iso=state.get("deadline_at"),
     )
 
 
@@ -280,6 +343,44 @@ def restart_quiz(
     states[pdf_id] = _create_new_quiz_state([question.id for question in questions])
     _save_quiz_states(request, states)
     return RedirectResponse(url=f"/quiz/{quote(pdf_id, safe='')}", status_code=303)
+
+
+@app.post("/quiz/{pdf_id:path}/timeout", response_class=HTMLResponse)
+def timeout_quiz(
+    request: Request,
+    pdf_id: str,
+    repository: Annotated[SQLiteRepository, Depends(get_repository)],
+) -> HTMLResponse:
+    questions = _get_all_questions_or_404(repository, pdf_id)
+    states = _get_quiz_states(request)
+    existing_state = states.get(pdf_id)
+    state = (
+        existing_state
+        if isinstance(existing_state, dict)
+        else _create_new_quiz_state([question.id for question in questions])
+    )
+
+    state["completed"] = True
+    states[pdf_id] = state
+    _save_quiz_states(request, states)
+
+    correct_count = int(state.get("correct_count", 0))
+    incorrect_count = int(state.get("incorrect_count", 0))
+    total_questions = int(state.get("total_questions", len(questions)))
+    score = _score_out_of_100(correct_count, incorrect_count)
+    return _render_quiz_page(
+        request=request,
+        pdf_id=pdf_id,
+        question=None,
+        correct_count=correct_count,
+        incorrect_count=incorrect_count,
+        feedback_message="Time's up.",
+        completed=True,
+        score_out_of_100=score,
+        total_questions=total_questions,
+        current_question_number=total_questions,
+        quiz_deadline_iso=None,
+    )
 
 
 @app.get("/flashcards/{pdf_id:path}", response_class=HTMLResponse)
@@ -306,8 +407,9 @@ def answer_question(
     request: Request,
     pdf_id: str,
     question_id: Annotated[int, Form(...)],
-    selected_index: Annotated[int, Form(...)],
     repository: Annotated[SQLiteRepository, Depends(get_repository)],
+    selected_index: Annotated[int | None, Form()] = None,
+    answer_text: Annotated[str | None, Form()] = None,
 ) -> HTMLResponse:
     questions = _get_all_questions_or_404(repository, pdf_id)
     question_map = {question.id: question for question in questions}
@@ -323,15 +425,26 @@ def answer_question(
     if question_id in queue:
         queue.remove(question_id)
 
-    is_correct = selected_index == question.correct_index
+    correct_answer = question.options[question.correct_index]
+    if question.question_type == "fill_blank":
+        if answer_text is None:
+            raise HTTPException(
+                status_code=422, detail="answer_text is required for this question"
+            )
+        is_correct = answer_text.strip().casefold() == correct_answer.strip().casefold()
+    else:
+        if selected_index is None:
+            raise HTTPException(
+                status_code=422, detail="selected_index is required for this question"
+            )
+        is_correct = selected_index == question.correct_index
+
     if is_correct:
         state["correct_count"] += 1
         feedback_message = "Correct answer."
     else:
         state["incorrect_count"] += 1
-        feedback_message = (
-            f"Incorrect. Correct answer: {question.options[question.correct_index]}"
-        )
+        feedback_message = f"Incorrect. Correct answer: {correct_answer}"
         queue.append(question_id)
 
     flashcard = repository.get_flashcard_by_question_id(question_id)
@@ -347,6 +460,7 @@ def answer_question(
     states[pdf_id] = state
     _save_quiz_states(request, states)
 
+    total_questions = state["total_questions"]
     if state["completed"]:
         score = _score_out_of_100(state["correct_count"], state["incorrect_count"])
         return _render_quiz_page(
@@ -358,6 +472,9 @@ def answer_question(
             feedback_message=feedback_message,
             completed=True,
             score_out_of_100=score,
+            total_questions=total_questions,
+            current_question_number=total_questions,
+            quiz_deadline_iso=None,
         )
 
     next_question = question_map[queue[0]]
@@ -370,6 +487,9 @@ def answer_question(
         feedback_message=feedback_message,
         completed=False,
         score_out_of_100=None,
+        total_questions=total_questions,
+        current_question_number=_current_question_number(total_questions, queue),
+        quiz_deadline_iso=state.get("deadline_at"),
     )
 
 
@@ -415,6 +535,9 @@ def _render_quiz_page(
     feedback_message: str | None,
     completed: bool,
     score_out_of_100: int | None,
+    total_questions: int = 0,
+    current_question_number: int = 0,
+    quiz_deadline_iso: str | None = None,
 ) -> HTMLResponse:
     # HTMX answer/restart requests only ever swap #quiz-panel, so they must
     # get the bare panel fragment. Returning the full quiz.html document here
@@ -429,6 +552,7 @@ def _render_quiz_page(
             "display_name": _set_display_name(pdf_id),
             "answer_url": f"/quiz/{quote(pdf_id, safe='')}/answer",
             "restart_url": f"/quiz/{quote(pdf_id, safe='')}/restart",
+            "timeout_url": f"/quiz/{quote(pdf_id, safe='')}/timeout",
             "question": question,
             "correct_count": correct_count,
             "incorrect_count": incorrect_count,
@@ -436,6 +560,9 @@ def _render_quiz_page(
             "completed": completed,
             "score_out_of_100": score_out_of_100,
             "stack_depth": min(correct_count + incorrect_count, 2),
+            "total_questions": total_questions,
+            "current_question_number": current_question_number,
+            "quiz_deadline_iso": quiz_deadline_iso,
         },
     )
 

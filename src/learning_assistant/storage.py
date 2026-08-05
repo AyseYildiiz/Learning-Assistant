@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from learning_assistant.ks_gateway import MultipleChoiceQuestion
+from learning_assistant.ks_gateway import FillBlankQuestion, MultipleChoiceQuestion
 
 _LEITNER_INTERVALS_DAYS: tuple[int, ...] = (1, 3, 7, 14, 30)
 
@@ -18,6 +18,7 @@ class QuestionRecord:
     question_text: str
     options: list[str]
     correct_index: int
+    question_type: str = "multiple_choice"
 
 
 @dataclass(slots=True)
@@ -62,6 +63,7 @@ class SQLiteRepository:
         question_text: str,
         options: list[str],
         correct_index: int,
+        question_type: str = "multiple_choice",
     ) -> QuestionRecord:
         with self._connection:
             return self._insert_question(
@@ -69,6 +71,7 @@ class SQLiteRepository:
                 question_text=question_text,
                 options=options,
                 correct_index=correct_index,
+                question_type=question_type,
             )
 
     def save_flashcard(
@@ -211,6 +214,15 @@ class SQLiteRepository:
                 ON flashcards(next_review_at);
             """
             )
+            existing_columns = {
+                str(row["name"])
+                for row in self._connection.execute("PRAGMA table_info(questions)")
+            }
+            if "question_type" not in existing_columns:
+                self._connection.execute(
+                    "ALTER TABLE questions ADD COLUMN question_type TEXT "
+                    "NOT NULL DEFAULT 'multiple_choice'"
+                )
 
     def _fetch_flashcards(
         self,
@@ -271,6 +283,7 @@ class SQLiteRepository:
             question_text=str(row["question_text"]),
             options=_deserialize_options(str(row["options"])),
             correct_index=int(row["correct_index"]),
+            question_type=str(row["question_type"]),
         )
 
     def _insert_question(
@@ -279,20 +292,23 @@ class SQLiteRepository:
         question_text: str,
         options: list[str],
         correct_index: int,
+        question_type: str = "multiple_choice",
     ) -> QuestionRecord:
         normalized_source_pdf = str(source_pdf)
         _validate_question_data(options=options, correct_index=correct_index)
 
         cursor = self._connection.execute(
             """
-            INSERT INTO questions (source_pdf, question_text, options, correct_index)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO questions
+                (source_pdf, question_text, options, correct_index, question_type)
+            VALUES (?, ?, ?, ?, ?)
             """,
             (
                 normalized_source_pdf,
                 question_text,
                 _serialize_options(options),
                 correct_index,
+                question_type,
             ),
         )
 
@@ -306,6 +322,7 @@ class SQLiteRepository:
             question_text=question_text,
             options=list(options),
             correct_index=correct_index,
+            question_type=question_type,
         )
 
     def _insert_flashcard(
@@ -378,7 +395,8 @@ class SQLiteRepository:
             source_pdf,
             question_text,
             options,
-            correct_index
+            correct_index,
+            question_type
         FROM questions
         WHERE source_pdf = ?
         ORDER BY id
@@ -399,7 +417,8 @@ class SQLiteRepository:
             source_pdf,
             question_text,
             options,
-            correct_index
+            correct_index,
+            question_type
         FROM questions
         WHERE id = ?
         """,
@@ -453,6 +472,32 @@ def save_generated_question_with_flashcard(
             question_text=question.question,
             options=question.options,
             correct_index=question.correct_index,
+            question_type="multiple_choice",
+        )
+        flashcard_record = repository._insert_flashcard(
+            question_id=question_record.id,
+            box_level=1,
+            next_review_at=review_time,
+        )
+
+    return question_record, flashcard_record
+
+
+def save_generated_fill_blank_with_flashcard(
+    repository: SQLiteRepository,
+    source_pdf: str | Path,
+    question: FillBlankQuestion,
+    now: datetime | None = None,
+) -> tuple[QuestionRecord, FlashcardRecord]:
+    review_time = _ensure_utc_datetime(now or datetime.now(UTC))
+
+    with repository._connection:
+        question_record = repository._insert_question(
+            source_pdf=source_pdf,
+            question_text=question.question,
+            options=[question.answer],
+            correct_index=0,
+            question_type="fill_blank",
         )
         flashcard_record = repository._insert_flashcard(
             question_id=question_record.id,

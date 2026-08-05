@@ -33,11 +33,20 @@
   {% if question %}
     <section class="question-card" style="--stack-depth: {{ stack_depth }};">
       <div class="question-meta">
-        <span class="badge">Active question</span>
-        <span class="hint">Choose one option and submit</span>
+        <span class="badge">Question {{ current_question_number }} of {{ total_questions }}</span>
+        {% if quiz_deadline_iso %}
+          <span class="badge timer-badge" id="quiz-timer" data-deadline="{{ quiz_deadline_iso }}">--:--</span>
+        {% endif %}
       </div>
 
       <h2>{{ question.question_text }}</h2>
+      <p class="hint">
+        {% if question.question_type == "fill_blank" %}
+          Type the missing word or phrase and submit.
+        {% else %}
+          Choose one option and submit.
+        {% endif %}
+      </p>
 
       <form
         class="answer-form"
@@ -49,20 +58,29 @@
       >
         <input type="hidden" name="question_id" value="{{ question.id }}">
 
-        <div class="options-grid">
-          {% for option in question.options %}
-            <label class="option-card">
-              <input class="option-input" type="radio" name="selected_index" value="{{ loop.index0 }}" required>
-              <span class="option-marker"></span>
-              <span class="option-text">{{ option }}</span>
-            </label>
-          {% endfor %}
-        </div>
+        {% if question.question_type == "fill_blank" %}
+          <div class="fill-blank-field">
+            <label class="fill-blank-label" for="answer-text">Your answer</label>
+            <input class="fill-blank-input" id="answer-text" type="text" name="answer_text" autocomplete="off" required>
+          </div>
+        {% else %}
+          <div class="options-grid">
+            {% for option in question.options %}
+              <label class="option-card">
+                <input class="option-input" type="radio" name="selected_index" value="{{ loop.index0 }}" required>
+                <span class="option-marker"></span>
+                <span class="option-text">{{ option }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        {% endif %}
 
         <div class="actions-row">
           <button class="primary-button" type="submit">Submit answer</button>
         </div>
       </form>
+
+      <form id="timeout-form" method="post" action="{{ timeout_url }}" hx-post="{{ timeout_url }}" hx-target="#quiz-panel" hx-swap="outerHTML" hidden></form>
     </section>
   {% else %}
     <section class="question-card empty-state" aria-live="polite" style="--stack-depth: 0;">
@@ -337,6 +355,42 @@
     justify-content: flex-end;
   }
 
+  .fill-blank-field {
+    display: grid;
+    gap: 0.5rem;
+    flex: 1;
+  }
+
+  .fill-blank-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+  }
+
+  .fill-blank-input {
+    border: 1px solid var(--option-border, var(--border));
+    border-radius: 1rem;
+    padding: 1rem;
+    font-size: 1.05rem;
+    background: var(--option-bg, #ffffff);
+    color: var(--option-text, var(--text-primary));
+  }
+
+  .fill-blank-input:focus-visible {
+    outline: 3px solid rgba(37, 99, 235, 0.22);
+    outline-offset: 2px;
+    border-color: var(--option-border-hover, rgba(37, 99, 235, 0.35));
+  }
+
+  .timer-badge {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .timer-badge--urgent {
+    color: var(--warning);
+    background: color-mix(in srgb, var(--warning), transparent 85%);
+  }
+
   .primary-button {
     appearance: none;
     border: none;
@@ -406,3 +460,51 @@
     }
   }
 </style>
+
+<script>
+  (function () {
+    if (window.__quizTimerInterval) {
+      clearInterval(window.__quizTimerInterval);
+      window.__quizTimerInterval = null;
+    }
+
+    var timerEl = document.getElementById("quiz-timer");
+    if (!timerEl) return;
+
+    var deadlineText = timerEl.getAttribute("data-deadline");
+    if (!deadlineText) return;
+
+    var deadline = new Date(deadlineText).getTime();
+    var timeoutForm = document.getElementById("timeout-form");
+    var fired = false;
+
+    var render = function () {
+      var remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) {
+        timerEl.textContent = "0:00";
+        timerEl.classList.add("timer-badge--urgent");
+        clearInterval(window.__quizTimerInterval);
+        if (!fired && timeoutForm) {
+          fired = true;
+          if (window.htmx) {
+            window.htmx.trigger(timeoutForm, "submit");
+          } else {
+            timeoutForm.submit();
+          }
+        }
+        return;
+      }
+
+      var totalSeconds = Math.ceil(remainingMs / 1000);
+      var minutes = Math.floor(totalSeconds / 60);
+      var seconds = totalSeconds % 60;
+      timerEl.textContent = minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
+      if (totalSeconds <= 30) {
+        timerEl.classList.add("timer-badge--urgent");
+      }
+    };
+
+    render();
+    window.__quizTimerInterval = setInterval(render, 1000);
+  })();
+</script>

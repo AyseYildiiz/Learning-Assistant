@@ -180,6 +180,80 @@ def test_htmx_answer_request_returns_bare_panel_fragment(tmp_path: Path) -> None
             app.state.repository = previous_repository
 
 
+def test_quiz_page_shows_question_progress_and_timer(tmp_path: Path) -> None:
+    repository = SQLiteRepository(tmp_path / "progress.db")
+    first_question = repository.save_question(
+        source_pdf="progress.pdf",
+        question_text="Question one?",
+        options=["A", "B", "C", "D"],
+        correct_index=0,
+    )
+    repository.save_question(
+        source_pdf="progress.pdf",
+        question_text="Question two?",
+        options=["A", "B", "C", "D"],
+        correct_index=1,
+    )
+
+    previous_repository = getattr(app.state, "repository", None)
+    app.state.repository = repository
+
+    try:
+        with TestClient(app) as client:
+            start_response = client.get("/quiz/progress.pdf")
+            assert start_response.status_code == 200
+            assert "Question 1 of 2" in start_response.text
+            assert 'id="quiz-timer"' in start_response.text
+            assert 'data-deadline="' in start_response.text
+
+            answer_response = client.post(
+                "/quiz/progress.pdf/answer",
+                data={"question_id": str(first_question.id), "selected_index": "0"},
+            )
+            assert answer_response.status_code == 200
+            assert "Question 2 of 2" in answer_response.text
+    finally:
+        repository.close()
+        if previous_repository is None:
+            delattr(app.state, "repository")
+        else:
+            app.state.repository = previous_repository
+
+
+def test_fill_blank_question_can_be_answered_with_text(tmp_path: Path) -> None:
+    repository = SQLiteRepository(tmp_path / "fill-blank.db")
+    question = repository.save_question(
+        source_pdf="capitals.pdf",
+        question_text="The capital of France is _____.",
+        options=["Paris"],
+        correct_index=0,
+        question_type="fill_blank",
+    )
+
+    previous_repository = getattr(app.state, "repository", None)
+    app.state.repository = repository
+
+    try:
+        with TestClient(app) as client:
+            quiz_response = client.get("/quiz/capitals.pdf")
+            assert quiz_response.status_code == 200
+            assert 'name="answer_text"' in quiz_response.text
+
+            answer_response = client.post(
+                "/quiz/capitals.pdf/answer",
+                data={"question_id": str(question.id), "answer_text": "  paris  "},
+            )
+            assert answer_response.status_code == 200
+            assert "Correct answer." in answer_response.text
+            assert "Quiz complete." in answer_response.text
+    finally:
+        repository.close()
+        if previous_repository is None:
+            delattr(app.state, "repository")
+        else:
+            app.state.repository = previous_repository
+
+
 def test_delete_set_removes_it_from_home_page(tmp_path: Path) -> None:
     repository = SQLiteRepository(tmp_path / "delete.db")
     repository.save_question(
