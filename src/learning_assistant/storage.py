@@ -49,6 +49,7 @@ class SQLiteRepository:
             Path(db_path_text).parent.mkdir(parents=True, exist_ok=True)
 
         self._connection = sqlite3.connect(db_path_text, check_same_thread=False)
+        self._connection.execute("PRAGMA foreign_keys = ON")
         self._connection.row_factory = sqlite3.Row
         self._initialize_schema()
 
@@ -179,28 +180,28 @@ class SQLiteRepository:
     def _initialize_schema(self) -> None:
         with self._connection:
             self._connection.executescript(
-                """
-                CREATE TABLE IF NOT EXISTS questions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    source_pdf TEXT NOT NULL,
-                    question_text TEXT NOT NULL,
-                    options TEXT NOT NULL,
-                    correct_index INTEGER NOT NULL
-                );
+            """
+            CREATE TABLE IF NOT EXISTS questions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_pdf TEXT NOT NULL,
+                question_text TEXT NOT NULL,
+                options TEXT NOT NULL,
+                correct_index INTEGER NOT NULL
+            );
 
-                CREATE TABLE IF NOT EXISTS flashcards (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    question_id INTEGER NOT NULL,
-                    box_level INTEGER NOT NULL,
-                    next_review_at TEXT NOT NULL,
-                    FOREIGN KEY (question_id) REFERENCES questions(id)
-                        ON DELETE CASCADE
-                );
+            CREATE TABLE IF NOT EXISTS flashcards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                question_id INTEGER NOT NULL,
+                box_level INTEGER NOT NULL,
+                next_review_at TEXT NOT NULL,
+                FOREIGN KEY (question_id) REFERENCES questions(id)
+                    ON DELETE CASCADE
+            );
 
-                CREATE INDEX IF NOT EXISTS idx_flashcards_due
-                    ON flashcards(next_review_at);
-                """
-            )
+            CREATE INDEX IF NOT EXISTS idx_flashcards_due
+                ON flashcards(next_review_at);
+            """
+        )
 
     def _fetch_flashcards(
         self,
@@ -250,6 +251,18 @@ class SQLiteRepository:
             front_text=str(row["question_text"]),
             back_text=options[correct_index],
         )
+
+    def _row_to_question(
+        self,
+        row: sqlite3.Row,
+    ) -> QuestionRecord:
+     return QuestionRecord(
+        id=int(row["id"]),
+        source_pdf=str(row["source_pdf"]),
+        question_text=str(row["question_text"]),
+        options=_deserialize_options(str(row["options"])),
+        correct_index=int(row["correct_index"]),
+    )
 
     def _insert_question(
         self,
@@ -320,6 +333,101 @@ class SQLiteRepository:
             next_review_at=normalized_next_review_at,
         )
 
+    def get_all_flashcards_for_source_pdf(
+        self,
+        source_pdf: str | Path,
+    ) -> list[DueFlashcardRecord]:
+        rows = self._connection.execute(
+        """
+        SELECT
+            flashcards.id AS flashcard_id,
+            flashcards.question_id,
+            flashcards.box_level,
+            flashcards.next_review_at,
+            questions.source_pdf,
+            questions.question_text,
+            questions.options,
+            questions.correct_index
+        FROM flashcards
+        JOIN questions
+            ON questions.id = flashcards.question_id
+        WHERE questions.source_pdf = ?
+        ORDER BY flashcards.id
+        """,
+        (str(source_pdf),),
+        ).fetchall()
+        return [self._row_to_due_flashcard(row) for row in rows]
+    
+    def get_questions_for_source_pdf(
+        self,
+        source_pdf: str | Path,
+    ) -> list[QuestionRecord]:
+        rows = self._connection.execute(
+        """
+        SELECT
+            id,
+            source_pdf,
+            question_text,
+            options,
+            correct_index
+        FROM questions
+        WHERE source_pdf = ?
+        ORDER BY id
+        """,
+        (str(source_pdf),),
+        ).fetchall()
+
+        return [self._row_to_question(row) for row in rows]
+    def get_question_by_id(
+        self,
+        question_id: int,
+    ) -> QuestionRecord | None:
+        row = self._connection.execute(
+        """
+        SELECT
+            id,
+            source_pdf,
+            question_text,
+            options,
+            correct_index
+        FROM questions
+        WHERE id = ?
+        """,
+        (question_id,),
+    ).fetchone()
+
+        if row is None:
+            return None
+
+        return self._row_to_question(row)
+    def get_flashcard_by_question_id(
+        self,
+        question_id: int,
+    ) -> FlashcardRecord | None:
+        row = self._connection.execute(
+        """
+        SELECT
+            id,
+            question_id,
+            box_level,
+            next_review_at
+        FROM flashcards
+        WHERE question_id = ?
+        """,
+        (question_id,),
+    ).fetchone()
+
+        if row is None:
+            return None
+
+        return FlashcardRecord(
+        id=int(row["id"]),
+        question_id=int(row["question_id"]),
+        box_level=int(row["box_level"]),
+        next_review_at=_parse_datetime(
+            str(row["next_review_at"])
+        ),
+    )
 
 def save_generated_question_with_flashcard(
     repository: SQLiteRepository,

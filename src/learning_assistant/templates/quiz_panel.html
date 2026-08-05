@@ -30,14 +30,14 @@
     </section>
   {% endif %}
 
-  {% if flashcard %}
+  {% if question %}
     <section class="question-card">
       <div class="question-meta">
         <span class="badge">Active question</span>
         <span class="hint">Choose one option and submit</span>
       </div>
 
-      <h2>{{ flashcard.question_text }}</h2>
+      <h2>{{ question.question_text }}</h2>
 
       <form
         class="answer-form"
@@ -47,12 +47,12 @@
         hx-target="#quiz-panel"
         hx-swap="outerHTML"
       >
-        <input type="hidden" name="flashcard_id" value="{{ flashcard.flashcard_id }}">
+        <input type="hidden" name="question_id" value="{{ question.id }}">
         <input type="hidden" name="correct_count" value="{{ correct_count }}">
         <input type="hidden" name="incorrect_count" value="{{ incorrect_count }}">
 
         <div class="options-grid">
-          {% for option in flashcard.options %}
+          {% for option in question.options %}
             <label class="option-card">
               <input class="option-input" type="radio" name="selected_index" value="{{ loop.index0 }}" required>
               <span class="option-marker"></span>

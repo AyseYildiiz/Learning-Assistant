@@ -17,6 +17,7 @@ dependencies = [
     "python-multipart>=0.0.20",
     "pypdf>=5.0",
     "uvicorn[standard]>=0.30",
+    "itsdangerous>=2.2.0",
 ]
 
 [project.scripts]

@@ -18,6 +18,7 @@ def build_multiple_choice_prompt(
         "Return ONLY JSON. Do not add markdown, code fences, commentary, or any other text.",
         'Use exactly this schema: {"question": str, "options": list[str], "correct_index": int}',
         "Rules:",
+        "-Do not generate more or fewer than given number of questions.",
         "- Provide exactly 4 answer options.",
         "- Use a zero-based correct_index.",
         "- The correct answer must be supported by the paragraph.",
