@@ -101,6 +101,44 @@ def test_save_generated_fill_blank_with_flashcard_creates_new_card(
     assert flashcard_record.question_id == question_record.id
 
 
+def test_document_text_round_trip(tmp_path: Path) -> None:
+    repository = SQLiteRepository(tmp_path / "study.db")
+    try:
+        assert repository.get_document_text("chapter-1.pdf") is None
+
+        repository.save_document_text("chapter-1.pdf", "Original extracted text.")
+        repository.save_document_text("chapter-1.pdf", "Updated extracted text.")
+
+        stored_text = repository.get_document_text("chapter-1.pdf")
+    finally:
+        repository.close()
+
+    assert stored_text == "Updated extracted text."
+
+
+def test_learning_path_round_trip(tmp_path: Path) -> None:
+    repository = SQLiteRepository(tmp_path / "study.db")
+    now = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
+    try:
+        assert repository.get_learning_path("chapter-1.pdf") is None
+
+        first_record = repository.save_learning_path(
+            "chapter-1.pdf", '{"overview": "v1", "steps": []}', now
+        )
+        second_record = repository.save_learning_path(
+            "chapter-1.pdf", '{"overview": "v2", "steps": []}', now
+        )
+        fetched_record = repository.get_learning_path("chapter-1.pdf")
+    finally:
+        repository.close()
+
+    assert first_record.content_json == '{"overview": "v1", "steps": []}'
+    assert second_record.content_json == '{"overview": "v2", "steps": []}'
+    assert fetched_record is not None
+    assert fetched_record.content_json == '{"overview": "v2", "steps": []}'
+    assert fetched_record.source_pdf == "chapter-1.pdf"
+
+
 def test_update_flashcard_review_advances_and_resets_boxes(tmp_path: Path) -> None:
     repository = SQLiteRepository(tmp_path / "study.db")
     reviewed_at = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)

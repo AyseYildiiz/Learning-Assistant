@@ -43,6 +43,14 @@ class DueFlashcardRecord:
     back_text: str
 
 
+@dataclass(slots=True)
+class LearningPathRecord:
+    id: int
+    source_pdf: str
+    content_json: str
+    created_at: datetime
+
+
 class SQLiteRepository:
     def __init__(self, db_path: str | Path) -> None:
         db_path_text = str(db_path)
@@ -157,10 +165,19 @@ class SQLiteRepository:
         return [str(row["source_pdf"]) for row in rows]
 
     def delete_set(self, source_pdf: str | Path) -> bool:
+        normalized_source_pdf = str(source_pdf)
         with self._connection:
             cursor = self._connection.execute(
                 "DELETE FROM questions WHERE source_pdf = ?",
-                (str(source_pdf),),
+                (normalized_source_pdf,),
+            )
+            self._connection.execute(
+                "DELETE FROM document_texts WHERE source_pdf = ?",
+                (normalized_source_pdf,),
+            )
+            self._connection.execute(
+                "DELETE FROM learning_paths WHERE source_pdf = ?",
+                (normalized_source_pdf,),
             )
 
         return cursor.rowcount > 0
@@ -212,6 +229,18 @@ class SQLiteRepository:
 
             CREATE INDEX IF NOT EXISTS idx_flashcards_due
                 ON flashcards(next_review_at);
+
+            CREATE TABLE IF NOT EXISTS document_texts (
+                source_pdf TEXT PRIMARY KEY,
+                content TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS learning_paths (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_pdf TEXT NOT NULL UNIQUE,
+                content_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
             """
             )
             existing_columns = {
@@ -455,6 +484,78 @@ class SQLiteRepository:
             question_id=int(row["question_id"]),
             box_level=int(row["box_level"]),
             next_review_at=_parse_datetime(str(row["next_review_at"])),
+        )
+
+    def save_document_text(self, source_pdf: str | Path, content: str) -> None:
+        with self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO document_texts (source_pdf, content)
+                VALUES (?, ?)
+                ON CONFLICT(source_pdf) DO UPDATE SET content = excluded.content
+                """,
+                (str(source_pdf), content),
+            )
+
+    def get_document_text(self, source_pdf: str | Path) -> str | None:
+        row = self._connection.execute(
+            "SELECT content FROM document_texts WHERE source_pdf = ?",
+            (str(source_pdf),),
+        ).fetchone()
+
+        if row is None:
+            return None
+
+        return str(row["content"])
+
+    def save_learning_path(
+        self,
+        source_pdf: str | Path,
+        content_json: str,
+        created_at: datetime | None = None,
+    ) -> LearningPathRecord:
+        normalized_source_pdf = str(source_pdf)
+        created_time = _ensure_utc_datetime(created_at or datetime.now(UTC))
+
+        with self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO learning_paths (source_pdf, content_json, created_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(source_pdf) DO UPDATE SET
+                    content_json = excluded.content_json,
+                    created_at = excluded.created_at
+                """,
+                (
+                    normalized_source_pdf,
+                    content_json,
+                    _serialize_datetime(created_time),
+                ),
+            )
+
+        learning_path = self.get_learning_path(normalized_source_pdf)
+        if learning_path is None:
+            raise RuntimeError("Failed to persist learning path record")
+        return learning_path
+
+    def get_learning_path(self, source_pdf: str | Path) -> LearningPathRecord | None:
+        row = self._connection.execute(
+            """
+            SELECT id, source_pdf, content_json, created_at
+            FROM learning_paths
+            WHERE source_pdf = ?
+            """,
+            (str(source_pdf),),
+        ).fetchone()
+
+        if row is None:
+            return None
+
+        return LearningPathRecord(
+            id=int(row["id"]),
+            source_pdf=str(row["source_pdf"]),
+            content_json=str(row["content_json"]),
+            created_at=_parse_datetime(str(row["created_at"])),
         )
 
 

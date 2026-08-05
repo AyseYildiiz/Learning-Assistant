@@ -3,8 +3,10 @@ from collections.abc import Sequence
 from learning_assistant.ks_gateway import (
     FillBlankQuestion,
     KSGatewayClient,
+    LearningPath,
     MultipleChoiceQuestion,
     parse_fill_blank_question,
+    parse_learning_path,
     parse_multiple_choice_question,
 )
 
@@ -172,3 +174,56 @@ def generate_fill_blank_questions(
             gateway_client.close()
 
     return questions
+
+
+def build_learning_path_prompt(paragraph: str) -> str:
+    prompt_lines = [
+        "You are a research-savvy learning coach with access to web search.",
+        "Read the study material below, identify its key topics, and search "
+        "the web for reputable external resources (official documentation, "
+        "well-known courses, articles, videos, or books) that help a learner "
+        "go deeper on each topic.",
+        "Return ONLY JSON. Do not add markdown, code fences, commentary, or any other text.",
+        "Use exactly this schema: "
+        '{"overview": str, "steps": [{"topic": str, "summary": str, '
+        '"resources": [{"title": str, "url": str or null, "description": str}]}]}',
+        "Rules:",
+        "- Produce between 3 and 6 steps, ordered from foundational to advanced.",
+        "- Each step must include 1 to 3 resources.",
+        '- Only set "url" when you are confident the resource is real and '
+        'relevant; otherwise set "url" to null and use "description" to '
+        "explain what to search for instead.",
+        "- Keep the overview to 2-3 sentences.",
+        "",
+        "Study material:",
+        paragraph.strip(),
+    ]
+    return "\n".join(prompt_lines)
+
+
+def generate_learning_path(
+    paragraph: str,
+    client: KSGatewayClient | None = None,
+    model: str | None = None,
+) -> LearningPath:
+    gateway_client = client or KSGatewayClient()
+    own_client = client is None
+
+    try:
+        prompt = build_learning_path_prompt(paragraph)
+        last_error: ValueError | None = None
+        for attempt in range(2):
+            ai_answer = gateway_client.infer(prompt=prompt, model=model)
+            try:
+                return parse_learning_path(ai_answer)
+            except ValueError as error:
+                last_error = error
+                if attempt == 0:
+                    prompt = (
+                        f"{prompt}\n\nYour previous response was invalid. "
+                        "Return only valid JSON matching the required schema."
+                    )
+        raise ValueError("Could not generate a valid learning path.") from last_error
+    finally:
+        if own_client:
+            gateway_client.close()

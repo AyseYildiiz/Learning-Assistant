@@ -109,7 +109,7 @@
       .dropzone strong { display: block; }
       .controls { display: flex; gap: 12px; align-items: end; margin-top: 16px; }
       .controls label { flex: 1; color: var(--muted); font-size: .85rem; }
-      select, button { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; font: inherit; }
+      select, input[type="number"], button { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; font: inherit; }
       .count-select { min-width: 110px; }
       button { border: 0; background: var(--primary); color: white; cursor: pointer; font-weight: 700; }
       button:hover { background: var(--primary-dark); }
@@ -192,8 +192,8 @@
           <p class="hint">PDF files up to 10 MB. Text-based PDFs work best.</p>
           <label class="dropzone" for="pdf-file"><strong>Choose your PDF</strong><span class="hint">or drop it here</span><input id="pdf-file" name="file" type="file" accept="application/pdf,.pdf" required></label>
           <div class="controls">
-            <label for="mcq-count">Multiple choice<select id="mcq-count" class="count-select" name="mcq_count"><option value="0">0</option><option value="5" selected>5</option><option value="10">10</option><option value="15">15</option><option value="20">20</option></select></label>
-            <label for="fill-blank-count">Fill in the blank<select id="fill-blank-count" class="count-select" name="fill_blank_count"><option value="0" selected>0</option><option value="5">5</option><option value="10">10</option><option value="15">15</option><option value="20">20</option></select></label>
+            <label for="mcq-count">Multiple choice<input id="mcq-count" class="count-select" type="number" inputmode="numeric" name="mcq_count" min="0" max="20" step="1" value="5"></label>
+            <label for="fill-blank-count">Fill in the blank<input id="fill-blank-count" class="count-select" type="number" inputmode="numeric" name="fill_blank_count" min="0" max="20" step="1" value="0"></label>
             <button id="generate-button" type="submit">Generate set</button>
           </div>
           <p id="upload-status" class="hint" hidden>Extracting text and creating your quiz...</p>
@@ -211,6 +211,7 @@
                 <div class="set-actions">
                   <a class="cta" href="/quiz/{{ study_set.encoded_id }}">Resume quiz</a>
                   <a href="/flashcards/{{ study_set.encoded_id }}">Flashcards</a>
+                  <a href="/learning-path/{{ study_set.encoded_id }}">Learning path</a>
                   <form method="post" action="/sets/{{ study_set.encoded_id }}/delete" onsubmit="return confirm('Delete this study set permanently?');">
                     <button type="submit" class="danger">Delete</button>
                   </form>

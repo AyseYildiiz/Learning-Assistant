@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Flashcards | {{ pdf_id }}</title>
+    <title>Learning path | {{ pdf_id }}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
@@ -17,6 +17,8 @@
         --surface: #ffffff;
         --canvas: #f4f7fb;
         --success: #087443;
+        --danger: #b42318;
+        --chip: #edf2ff;
       }
 
       [data-theme="dark"] {
@@ -28,6 +30,8 @@
         --surface: #111a2c;
         --canvas: #070c15;
         --success: #7ce2ad;
+        --danger: #ff9e9e;
+        --chip: #1a2540;
       }
 
       * { box-sizing: border-box; }
@@ -43,7 +47,7 @@
       }
 
       main {
-        max-width: 720px;
+        max-width: 760px;
         margin: 0 auto;
         padding: 32px 20px 64px;
       }
@@ -89,6 +93,7 @@
 
       .header-links {
         display: flex;
+        flex-wrap: wrap;
         gap: 12px;
       }
 
@@ -102,41 +107,128 @@
         text-decoration: underline;
       }
 
-      .grid {
-        display: grid;
-        gap: 16px;
+      .overview-card {
+        padding: 20px 22px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        box-shadow: 0 12px 30px rgba(30, 55, 90, .06);
+        margin: 24px 0;
       }
 
-      /* Fixed padding + a minimum height keep every card the same size
-         regardless of how many cards are on the page or how long the
-         question/answer text is. */
-      article {
-        min-height: 9rem;
+      .overview-card h2 {
+        margin: 0 0 8px;
+        font-size: 1.1rem;
+      }
+
+      .overview-card p {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .steps {
+        display: grid;
+        gap: 16px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .step-card {
         padding: 22px;
         background: var(--surface);
         border: 1px solid var(--line);
         border-radius: 12px;
         box-shadow: 0 12px 30px rgba(30, 55, 90, .06);
+      }
+
+      .step-card h2 {
+        margin: 0 0 6px;
+        font-size: 1.15rem;
         display: flex;
-        flex-direction: column;
-        gap: 14px;
+        align-items: center;
+        gap: 8px;
       }
 
-      article h2 {
+      .step-index {
+        display: inline-grid;
+        place-items: center;
+        width: 1.7rem;
+        height: 1.7rem;
+        border-radius: 50%;
+        background: var(--chip);
+        color: var(--primary);
+        font-size: .85rem;
+        font-weight: 700;
+      }
+
+      .step-card > p {
+        margin: 0 0 14px;
+        color: var(--muted);
+      }
+
+      .resource-list {
+        display: grid;
+        gap: 10px;
         margin: 0;
-        font-size: 1.05rem;
-        line-height: 1.4;
+        padding: 0;
+        list-style: none;
       }
 
-      article p {
-        margin: 0;
+      .resource-card {
+        padding: 12px 14px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: color-mix(in srgb, var(--surface), var(--chip) 30%);
       }
 
-      .answer {
-        padding-top: 14px;
-        border-top: 1px solid #edf1f6;
-        color: var(--success);
+      .resource-card a {
+        color: var(--primary);
+        font-weight: 700;
+        text-decoration: none;
       }
+
+      .resource-card a:hover {
+        text-decoration: underline;
+      }
+
+      .resource-title {
+        font-weight: 700;
+      }
+
+      .resource-description {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: .92rem;
+      }
+
+      .regenerate-form {
+        margin-top: 28px;
+      }
+
+      .regenerate-form button {
+        border: 1px solid var(--line);
+        background: var(--surface);
+        color: var(--ink);
+        border-radius: 999px;
+        padding: 10px 18px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .regenerate-form button:hover {
+        border-color: var(--primary);
+      }
+
+      .error {
+        background: #fff0ef;
+        color: var(--danger);
+        padding: 12px 14px;
+        border-radius: 8px;
+        margin: 18px 0;
+      }
+
+      [data-theme="dark"] .error { background: #3a1616; }
 
       .empty {
         color: var(--muted);
@@ -151,26 +243,56 @@
         <span id="theme-toggle-icon" class="theme-toggle-icon">☀</span>
       </button>
       <header>
-        <h1>Flashcards</h1>
-        <p class="muted">Cards from {{ display_name }}</p>
+        <h1>Learning path</h1>
+        <p class="muted">A guided route through {{ display_name }}</p>
         <div class="header-links">
           <a href="/quiz/{{ pdf_id | urlencode }}">Start quiz</a>
-          <a href="{{ learning_path_url }}">Learning path</a>
+          <a href="/flashcards/{{ pdf_id | urlencode }}">Flashcards</a>
           <a href="/">Back to library</a>
         </div>
       </header>
-      {% if flashcards %}
-        <section class="grid">
-          {% for flashcard in flashcards %}
-            <article>
-              <h2>{{ loop.index }}. {{ flashcard.front_text }}</h2>
-              <p class="answer"><strong>Answer:</strong> {{ flashcard.back_text }}</p>
-            </article>
-          {% endfor %}
-        </section>
-      {% else %}
-        <p class="empty">There are no cards due for review right now.</p>
+
+      {% if error_message %}
+        <p class="error" role="alert">Could not generate a learning path: {{ error_message }}</p>
       {% endif %}
+
+      {% if learning_path %}
+        <section class="overview-card">
+          <h2>Overview</h2>
+          <p>{{ learning_path.overview }}</p>
+        </section>
+
+        <ol class="steps">
+          {% for step in learning_path.steps %}
+            <li class="step-card">
+              <h2><span class="step-index">{{ loop.index }}</span> {{ step.topic }}</h2>
+              <p>{{ step.summary }}</p>
+              {% if step.resources %}
+                <ul class="resource-list">
+                  {% for resource in step.resources %}
+                    <li class="resource-card">
+                      {% if resource.url %}
+                        <a class="resource-title" href="{{ resource.url }}" target="_blank" rel="noopener noreferrer">{{ resource.title }}</a>
+                      {% else %}
+                        <span class="resource-title">{{ resource.title }}</span>
+                      {% endif %}
+                      {% if resource.description %}
+                        <p class="resource-description">{{ resource.description }}</p>
+                      {% endif %}
+                    </li>
+                  {% endfor %}
+                </ul>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ol>
+      {% elif not error_message %}
+        <p class="empty">No learning path is available for this study set yet.</p>
+      {% endif %}
+
+      <form class="regenerate-form" method="post" action="{{ regenerate_url }}">
+        <button type="submit">Regenerate learning path</button>
+      </form>
     </main>
     <script>
       (function () {

@@ -3,13 +3,19 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from learning_assistant.main import app
 from learning_assistant.storage import SQLiteRepository
 
 
-def test_quiz_flow_advances_with_htmx_partial_updates(tmp_path: Path) -> None:
+def test_quiz_flow_advances_with_htmx_partial_updates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The quiz queue is shuffled on creation, so disable shuffling here to keep
+    # the question order (and this test's assertions) deterministic.
+    monkeypatch.setattr("learning_assistant.web.random.shuffle", lambda x: None)
     repository = SQLiteRepository(tmp_path / "quiz.db")
     first_question = repository.save_question(
         source_pdf="chapter-1.pdf",
@@ -86,7 +92,10 @@ def test_quiz_flow_advances_with_htmx_partial_updates(tmp_path: Path) -> None:
             app.state.repository = previous_repository
 
 
-def test_quiz_resumes_if_unfinished_and_restarts_if_completed(tmp_path: Path) -> None:
+def test_quiz_resumes_if_unfinished_and_restarts_if_completed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("learning_assistant.web.random.shuffle", lambda x: None)
     repository = SQLiteRepository(tmp_path / "resume.db")
     first_question = repository.save_question(
         source_pdf="session.pdf",
@@ -252,6 +261,40 @@ def test_fill_blank_question_can_be_answered_with_text(tmp_path: Path) -> None:
             delattr(app.state, "repository")
         else:
             app.state.repository = previous_repository
+
+
+def test_new_quiz_state_shuffles_question_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Force a deterministic "shuffle" (reverse) so we can assert it was applied
+    # instead of relying on random chance.
+    monkeypatch.setattr(
+        "learning_assistant.web.random.shuffle", lambda items: items.reverse()
+    )
+    repository = SQLiteRepository(tmp_path / "shuffle.db")
+    for index in range(3):
+        repository.save_question(
+            source_pdf="shuffled.pdf",
+            question_text=f"Question {index}?",
+            options=["A", "B", "C", "D"],
+            correct_index=0,
+        )
+
+    previous_repository = getattr(app.state, "repository", None)
+    app.state.repository = repository
+
+    try:
+        with TestClient(app) as client:
+            response = client.get("/quiz/shuffled.pdf")
+    finally:
+        repository.close()
+        if previous_repository is None:
+            delattr(app.state, "repository")
+        else:
+            app.state.repository = previous_repository
+
+    assert response.status_code == 200
+    assert "Question 2?" in response.text
 
 
 def test_delete_set_removes_it_from_home_page(tmp_path: Path) -> None:

@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from learning_assistant.settings import GatewaySettings
 
@@ -50,6 +50,23 @@ class MultipleChoiceQuestion(BaseModel):
 class FillBlankQuestion(BaseModel):
     question: str
     answer: str
+
+
+class LearningResource(BaseModel):
+    title: str
+    url: str | None = None
+    description: str = ""
+
+
+class LearningPathStep(BaseModel):
+    topic: str
+    summary: str
+    resources: list[LearningResource] = Field(default_factory=list)
+
+
+class LearningPath(BaseModel):
+    overview: str
+    steps: list[LearningPathStep]
 
 
 @dataclass(slots=True)
@@ -178,4 +195,25 @@ def parse_fill_blank_question(raw_text: str) -> FillBlankQuestion:
         except ValidationError as validation_error:
             raise ValueError(
                 "The gateway response did not match the fill-in-the-blank question schema."
+            ) from validation_error
+
+
+def parse_learning_path(raw_text: str) -> LearningPath:
+    candidate_text = _extract_json_candidate(raw_text)
+
+    try:
+        return LearningPath.model_validate_json(candidate_text)
+    except ValidationError:
+        try:
+            parsed_text = json.loads(candidate_text)
+        except json.JSONDecodeError as decode_error:
+            raise ValueError(
+                "The gateway response could not be parsed as a learning path."
+            ) from decode_error
+
+        try:
+            return LearningPath.model_validate(parsed_text)
+        except ValidationError as validation_error:
+            raise ValueError(
+                "The gateway response did not match the learning path schema."
             ) from validation_error

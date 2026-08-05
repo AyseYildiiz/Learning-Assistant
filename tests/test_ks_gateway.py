@@ -2,7 +2,7 @@ import json
 
 import httpx
 
-from learning_assistant.ks_gateway import KSGatewayClient
+from learning_assistant.ks_gateway import KSGatewayClient, parse_learning_path
 from learning_assistant.question_generation import generate_multiple_choice_question
 from learning_assistant.settings import GatewaySettings
 
@@ -110,3 +110,25 @@ def test_ks_gateway_client_caches_token_and_extracts_ai_answer() -> None:
     assert question.question == "What is 2 + 2?"
     assert question.options == ["1", "2", "4", "8"]
     assert question.correct_index == 2
+
+
+def test_parse_learning_path_handles_fenced_json_and_null_urls() -> None:
+    raw_text = (
+        "Here is the learning path:\n"
+        "```json\n"
+        '{"overview": "Start with the basics, then go deeper.", '
+        '"steps": [{"topic": "Fundamentals", "summary": "Learn the core ideas.", '
+        '"resources": [{"title": "Official docs", "url": "https://example.test/docs", '
+        '"description": "Read the reference."}, '
+        '{"title": "Search for community tutorials", "url": null, '
+        '"description": "Look for beginner-friendly guides."}]}]}\n'
+        "```"
+    )
+
+    learning_path = parse_learning_path(raw_text)
+
+    assert learning_path.overview == "Start with the basics, then go deeper."
+    assert len(learning_path.steps) == 1
+    assert learning_path.steps[0].topic == "Fundamentals"
+    assert learning_path.steps[0].resources[0].url == "https://example.test/docs"
+    assert learning_path.steps[0].resources[1].url is None

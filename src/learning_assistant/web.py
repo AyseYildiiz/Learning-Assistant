@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import os
+import random
 import re
 import secrets
 import tempfile
@@ -14,10 +16,11 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from learning_assistant.ks_gateway import KSGatewayClient
+from learning_assistant.ks_gateway import KSGatewayClient, LearningPath
 from learning_assistant.pdf_extract import extract_text
 from learning_assistant.question_generation import (
     generate_fill_blank_questions,
+    generate_learning_path,
     generate_multiple_choice_questions,
 )
 from learning_assistant.storage import (
@@ -132,6 +135,7 @@ async def upload_pdf(
             raise ValueError("No extractable text was found in this PDF.")
 
         set_id = _make_set_id(filename)
+        repository.save_document_text(set_id, extracted_text)
         gateway_client = KSGatewayClient()
         try:
             if mcq_count > 0:
@@ -224,8 +228,10 @@ def _current_question_number(total_questions: int, remaining_queue: list[int]) -
 
 def _create_new_quiz_state(question_ids: list[int]) -> dict[str, Any]:
     total_questions = len(question_ids)
+    shuffled_ids = list(question_ids)
+    random.shuffle(shuffled_ids)
     return {
-        "queue": list(question_ids),
+        "queue": shuffled_ids,
         "correct_count": 0,
         "incorrect_count": 0,
         "completed": False,
@@ -398,7 +404,103 @@ def flashcards_page(
             "pdf_id": pdf_id,
             "display_name": _set_display_name(pdf_id),
             "flashcards": flashcards,
+            "learning_path_url": f"/learning-path/{quote(pdf_id, safe='')}",
         },
+    )
+
+
+def _build_learning_path_source_material(
+    repository: SQLiteRepository,
+    pdf_id: str,
+    questions: list[QuestionRecord],
+) -> str:
+    document_text = repository.get_document_text(pdf_id)
+    if document_text:
+        return document_text
+
+    lines = [
+        f"{question.question_text} Answer: {question.options[question.correct_index]}"
+        for question in questions
+    ]
+    return "\n".join(lines)
+
+
+def _generate_and_save_learning_path(
+    repository: SQLiteRepository, pdf_id: str
+) -> LearningPath:
+    questions = _get_all_questions_or_404(repository, pdf_id)
+    source_material = _build_learning_path_source_material(
+        repository, pdf_id, questions
+    )
+    gateway_client = KSGatewayClient()
+    try:
+        learning_path = generate_learning_path(
+            paragraph=source_material, client=gateway_client
+        )
+    finally:
+        gateway_client.close()
+    repository.save_learning_path(pdf_id, learning_path.model_dump_json())
+    return learning_path
+
+
+def _get_or_generate_learning_path(
+    repository: SQLiteRepository, pdf_id: str
+) -> LearningPath:
+    existing_record = repository.get_learning_path(pdf_id)
+    if existing_record is not None:
+        return LearningPath.model_validate_json(existing_record.content_json)
+    return _generate_and_save_learning_path(repository, pdf_id)
+
+
+def _render_learning_path_page(
+    request: Request,
+    pdf_id: str,
+    learning_path: LearningPath | None,
+    *,
+    error_message: str | None = None,
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request=request,
+        name="learning_path.html",
+        context={
+            "pdf_id": pdf_id,
+            "display_name": _set_display_name(pdf_id),
+            "learning_path": learning_path,
+            "error_message": error_message,
+            "regenerate_url": f"/learning-path/{quote(pdf_id, safe='')}/regenerate",
+        },
+    )
+
+
+@app.get("/learning-path/{pdf_id:path}", response_class=HTMLResponse)
+def learning_path_page(
+    request: Request,
+    pdf_id: str,
+    repository: Annotated[SQLiteRepository, Depends(get_repository)],
+) -> HTMLResponse:
+    _get_all_questions_or_404(repository, pdf_id)
+    try:
+        learning_path = _get_or_generate_learning_path(repository, pdf_id)
+    except (OSError, ValueError, RuntimeError) as error:
+        return _render_learning_path_page(
+            request, pdf_id, None, error_message=str(error)
+        )
+
+    return _render_learning_path_page(request, pdf_id, learning_path)
+
+
+@app.post("/learning-path/{pdf_id:path}/regenerate")
+def regenerate_learning_path(
+    request: Request,
+    pdf_id: str,
+    repository: Annotated[SQLiteRepository, Depends(get_repository)],
+) -> RedirectResponse:
+    _get_all_questions_or_404(repository, pdf_id)
+    with contextlib.suppress(OSError, ValueError, RuntimeError):
+        _generate_and_save_learning_path(repository, pdf_id)
+
+    return RedirectResponse(
+        url=f"/learning-path/{quote(pdf_id, safe='')}", status_code=303
     )
 
 
@@ -553,6 +655,7 @@ def _render_quiz_page(
             "answer_url": f"/quiz/{quote(pdf_id, safe='')}/answer",
             "restart_url": f"/quiz/{quote(pdf_id, safe='')}/restart",
             "timeout_url": f"/quiz/{quote(pdf_id, safe='')}/timeout",
+            "learning_path_url": f"/learning-path/{quote(pdf_id, safe='')}",
             "question": question,
             "correct_count": correct_count,
             "incorrect_count": incorrect_count,
