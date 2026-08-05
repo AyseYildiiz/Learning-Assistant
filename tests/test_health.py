@@ -1,4 +1,5 @@
 from pathlib import Path
+from urllib.parse import unquote
 
 import pytest
 from fastapi.testclient import TestClient
@@ -69,8 +70,10 @@ def test_upload_pdf_generates_and_stores_flashcards(
             data={"count": "1"},
             follow_redirects=False,
         )
+        location = response.headers["location"]
+        set_id = unquote(location.removeprefix("/quiz/"))
         quiz_response = client.get(response.headers["location"])
-        flashcards_response = client.get("/flashcards/lesson.pdf")
+        flashcards_response = client.get(f"/flashcards/{set_id}")
     finally:
         repository.close()
         if previous_repository is None:
@@ -79,7 +82,8 @@ def test_upload_pdf_generates_and_stores_flashcards(
             app.state.repository = previous_repository
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/quiz/lesson.pdf"
+    assert response.headers["location"].startswith("/quiz/lesson-")
+    assert response.headers["location"].endswith(".pdf")
     assert quiz_response.status_code == 200
     assert "Quiz" in quiz_response.text
     assert "What is tested?" in quiz_response.text

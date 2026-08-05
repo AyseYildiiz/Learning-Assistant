@@ -79,8 +79,14 @@ def test_update_flashcard_review_advances_and_resets_boxes(tmp_path: Path) -> No
     reviewed_at = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 
     try:
+        question = repository.save_question(
+            source_pdf="chapter-1.pdf",
+            question_text="What is 2 + 2?",
+            options=["1", "2", "4", "8"],
+            correct_index=2,
+        )
         flashcard = repository.save_flashcard(
-            question_id=1,
+            question_id=question.id,
             box_level=1,
             next_review_at=reviewed_at,
         )

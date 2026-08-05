@@ -5,18 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>StudyFlow | PDF Learning Assistant</title>
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
       :root {
         color-scheme: light;
-        --ink: #162033;
-        --muted: #64748b;
-        --line: #dbe4ef;
-        --primary: #3157d5;
-        --primary-dark: #2341aa;
+        --ink: #1b2231;
+        --muted: #5e6b84;
+        --line: #d7deea;
+        --primary: #1d4ed8;
+        --primary-dark: #183ea9;
         --surface: #ffffff;
-        --canvas: #f4f7fb;
-        --success: #087443;
+        --canvas: #eef2f9;
+        --success: #11653b;
         --danger: #b42318;
+        --chip: #edf2ff;
+      }
+
+      [data-theme="dark"] {
+        color-scheme: dark;
+        --ink: #ecf1ff;
+        --muted: #a8b3cc;
+        --line: #2a3345;
+        --primary: #5f86ff;
+        --primary-dark: #7b9bff;
+        --surface: #111827;
+        --canvas: #070b13;
+        --success: #5bd497;
+        --danger: #ff9e9e;
+        --chip: #1a2540;
       }
 
       * { box-sizing: border-box; }
@@ -25,45 +43,143 @@
         min-width: 320px;
         background: var(--canvas);
         color: var(--ink);
-        font: 16px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+        font: 16px/1.55 "Source Sans 3", ui-sans-serif, system-ui, -apple-system, sans-serif;
+        background-image:
+          radial-gradient(circle at 15% 0, rgba(29, 78, 216, .18), transparent 36%),
+          radial-gradient(circle at 90% 20%, rgba(15, 118, 110, .12), transparent 35%);
       }
       .shell { max-width: 1080px; margin: 0 auto; padding: 28px 20px 64px; }
-      .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 56px; }
+      .theme-toggle {
+        border: 1px solid var(--line);
+        background: var(--surface);
+        color: var(--ink);
+        border-radius: 999px;
+        width: 2.85rem;
+        height: 2.85rem;
+        padding: 0;
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        font-weight: 700;
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        z-index: 20;
+        box-shadow: 0 8px 18px rgba(15, 24, 42, 0.22);
+      }
+      .theme-toggle-icon {
+        font-size: 1.2rem;
+        line-height: 1;
+      }
+      .brand { display: flex; align-items: center; gap: 12px; margin: 28px 0 56px; }
       .brand-mark {
         display: grid; place-items: center; width: 42px; height: 42px;
-        border-radius: 8px; background: var(--primary); color: white; font-weight: 800;
+        border-radius: 10px;
+        background: linear-gradient(145deg, var(--primary), #0e7490);
+        color: white;
+        font-weight: 800;
+        font-family: "Space Grotesk", sans-serif;
       }
-      .brand strong { display: block; font-size: 1.05rem; }
+      .brand strong { display: block; font-size: 1.05rem; font-family: "Space Grotesk", sans-serif; }
       .brand span { color: var(--muted); font-size: .85rem; }
       .hero { display: grid; grid-template-columns: 1.1fr .9fr; gap: 52px; align-items: center; }
-      h1 { margin: 0 0 16px; max-width: 620px; font-size: clamp(2.25rem, 5vw, 4.5rem); line-height: 1.03; letter-spacing: 0; }
+      h1 { margin: 0 0 16px; max-width: 620px; font: 700 clamp(2.25rem, 5vw, 4.5rem)/1.03 "Space Grotesk", sans-serif; }
       .lede { max-width: 520px; margin: 0; color: var(--muted); font-size: 1.08rem; }
-      .upload-card, .library-card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 18px 50px rgba(30, 55, 90, .08); }
+      .upload-card, .library-card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        box-shadow: 0 18px 50px rgba(25, 35, 60, .15);
+      }
       .upload-card { padding: 26px; }
       .upload-card h2, .library-card h2 { margin: 0 0 6px; font-size: 1.2rem; }
       .hint { color: var(--muted); font-size: .9rem; margin: 0 0 20px; }
-      .dropzone { display: grid; place-items: center; padding: 28px 16px; border: 1.5px dashed #9db0c8; border-radius: 8px; background: #f8faff; text-align: center; cursor: pointer; }
-      .dropzone:hover { border-color: var(--primary); background: #f1f5ff; }
+      .dropzone {
+        display: grid;
+        place-items: center;
+        padding: 28px 16px;
+        border: 1.5px dashed #9db0c8;
+        border-radius: 12px;
+        background: color-mix(in srgb, var(--surface), #cad8ff 18%);
+        text-align: center;
+        cursor: pointer;
+      }
+      .dropzone:hover { border-color: var(--primary); }
       .dropzone input { width: 100%; margin-top: 12px; }
       .dropzone strong { display: block; }
       .controls { display: flex; gap: 12px; align-items: end; margin-top: 16px; }
       .controls label { flex: 1; color: var(--muted); font-size: .85rem; }
-      select, button { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 11px 12px; font: inherit; }
+      select, button { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; font: inherit; }
       button { border: 0; background: var(--primary); color: white; cursor: pointer; font-weight: 700; }
       button:hover { background: var(--primary-dark); }
       .library-card { margin-top: 48px; padding: 26px; }
-      .library-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 20px 0 0; padding: 0; list-style: none; }
-      .library-list a { display: block; padding: 15px 16px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); text-decoration: none; font-weight: 650; }
-      .library-list a:hover { border-color: var(--primary); color: var(--primary); }
+      .library-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 14px;
+        margin: 20px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+      .set-card {
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: color-mix(in srgb, var(--surface), var(--chip) 24%);
+      }
+      .set-name {
+        margin: 0 0 10px;
+        font: 700 1rem/1.4 "Space Grotesk", sans-serif;
+        overflow-wrap: break-word;
+        word-break: break-word;
+      }
+      .set-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .set-actions a,
+      .set-actions button {
+        width: auto;
+        min-width: 86px;
+        text-decoration: none;
+        border-radius: 999px;
+        padding: 8px 14px;
+        border: 1px solid var(--line);
+        background: var(--surface);
+        color: var(--ink);
+        font-weight: 700;
+      }
+      .set-actions a:hover,
+      .set-actions button:hover {
+        border-color: var(--primary);
+      }
+      .set-actions .cta {
+        background: var(--primary);
+        color: #fff;
+        border: 0;
+      }
+      .set-actions .danger {
+        color: var(--danger);
+      }
       .message { margin: 18px 0 0; padding: 12px 14px; border-radius: 8px; }
       .success { background: #eaf8f0; color: var(--success); }
       .error { background: #fff0ef; color: var(--danger); }
       .empty { color: var(--muted); }
-      @media (max-width: 760px) { .hero { grid-template-columns: 1fr; gap: 28px; } .brand { margin-bottom: 32px; } .controls { align-items: stretch; flex-direction: column; } }
+      [data-theme="dark"] .success { background: #0d2b1c; }
+      [data-theme="dark"] .error { background: #3a1616; }
+      @media (max-width: 760px) {
+        .hero { grid-template-columns: 1fr; gap: 28px; }
+        .brand { margin-bottom: 32px; }
+        .controls { align-items: stretch; flex-direction: column; }
+      }
     </style>
   </head>
   <body>
     <main class="shell">
+      <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
+        <span id="theme-toggle-icon" class="theme-toggle-icon">☀</span>
+      </button>
       <div class="brand"><div class="brand-mark">S</div><div><strong>Learning Assistant</strong><span>Turn reading into active recall</span></div></div>
       <section class="hero">
         <div>
@@ -82,10 +198,50 @@
       </section>
       <section class="library-card">
         <h2>Your study sets</h2>
-        {% if source_pdfs %}<ul class="library-list">{% for source_pdf in source_pdfs %}<li><a href="/quiz/{{ source_pdf | urlencode }}">{{ source_pdf }} <span aria-hidden="true">-&gt;</span></a></li>{% endfor %}</ul>{% else %}<p class="empty">Your generated study sets will appear here.</p>{% endif %}
+        {% if study_sets %}
+          <ul class="library-list">
+            {% for study_set in study_sets %}
+              <li class="set-card">
+                <p class="set-name">{{ study_set.name }}</p>
+                <div class="set-actions">
+                  <a class="cta" href="/quiz/{{ study_set.encoded_id }}">Resume quiz</a>
+                  <a href="/flashcards/{{ study_set.encoded_id }}">Flashcards</a>
+                  <form method="post" action="/sets/{{ study_set.encoded_id }}/delete" onsubmit="return confirm('Delete this study set permanently?');">
+                    <button type="submit" class="danger">Delete</button>
+                  </form>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="empty">Your generated study sets will appear here.</p>
+        {% endif %}
       </section>
     </main>
     <script>
+      (function () {
+        const key = "studyflow-theme";
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          document.documentElement.setAttribute("data-theme", saved);
+        }
+        const icon = document.getElementById("theme-toggle-icon");
+        const updateIcon = function () {
+          const currentTheme = document.documentElement.getAttribute("data-theme") || "light";
+          icon.textContent = currentTheme === "dark" ? "☀" : "☾";
+        };
+        updateIcon();
+
+        const button = document.getElementById("theme-toggle");
+        button.addEventListener("click", function () {
+          const current = document.documentElement.getAttribute("data-theme") || "light";
+          const next = current === "dark" ? "light" : "dark";
+          document.documentElement.setAttribute("data-theme", next);
+          localStorage.setItem(key, next);
+          updateIcon();
+        });
+      })();
+
       document.getElementById("upload-form").addEventListener("submit", function () {
         document.getElementById("generate-button").disabled = true;
         document.getElementById("generate-button").textContent = "Generating...";
@@ -94,18 +250,3 @@
     </script>
   </body>
 </html>
-
-<style>
-  .library-list a {
-  display: block;
-  padding: 15px 16px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--ink);
-  text-decoration: none;
-  font-weight: 650;
-
-  overflow-wrap: break-word;
-  word-break: break-word;
-}
-</style>
