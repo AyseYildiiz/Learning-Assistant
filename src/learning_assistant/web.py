@@ -19,6 +19,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from learning_assistant.ks_gateway import KSGatewayClient, LearningPath
 from learning_assistant.pdf_extract import extract_text
 from learning_assistant.question_generation import (
+    answer_chat_message,
     generate_fill_blank_questions,
     generate_learning_path,
     generate_multiple_choice_questions,
@@ -47,10 +48,14 @@ _DEFAULT_DATABASE_PATH = (
     Path(__file__).resolve().parent.parent / "data" / "learning_assistant.sqlite3"
 )
 _MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+_MAX_UPLOAD_FILES = 10
 _MAX_TOTAL_QUESTIONS = 20
 _QUIZ_STATES_KEY = "quiz_states"
 _SECONDS_PER_QUESTION = 40
 _MIN_QUIZ_SECONDS = 60
+_CHAT_HISTORIES_KEY = "chat_histories"
+_MAX_CHAT_HISTORY_MESSAGES = 12
+_MAX_CHAT_MESSAGE_LENGTH = 2000
 _SET_ID_PATTERN = re.compile(
     r"^(?P<stem>.+)-(?P<stamp>\d{14})-(?P<token>[0-9a-f]{4})(?P<ext>\.pdf)$"
 )
@@ -91,6 +96,19 @@ async def _read_pdf_upload(upload: UploadFile) -> tuple[str, bytes]:
     return filename, content
 
 
+def _extract_pdf_text(content: bytes) -> str:
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temporary_file:
+            temporary_file.write(content)
+            temporary_path = Path(temporary_file.name)
+
+        return extract_text(temporary_path)
+    finally:
+        if temporary_path:
+            temporary_path.unlink(missing_ok=True)
+
+
 def _make_set_id(filename: str) -> str:
     stem = Path(filename).stem or "study-set"
     ext = Path(filename).suffix.lower() or ".pdf"
@@ -99,16 +117,40 @@ def _make_set_id(filename: str) -> str:
     return f"{stem}-{timestamp}-{token}{ext}"
 
 
+def _make_combined_set_id(filenames: list[str]) -> str:
+    if len(filenames) == 1:
+        return _make_set_id(filenames[0])
+
+    first_stem = Path(filenames[0]).stem or "study-set"
+    label = f"{first_stem} + {len(filenames) - 1} more"
+    return _make_set_id(f"{label}.pdf")
+
+
+def _combine_extracted_texts(extracted_texts: list[tuple[str, str]]) -> str:
+    if len(extracted_texts) == 1:
+        return extracted_texts[0][1]
+
+    sections = [
+        f"--- Source: {filename} ---\n{text.strip()}"
+        for filename, text in extracted_texts
+    ]
+    return "\n\n".join(sections)
+
+
 @app.post("/upload", response_class=HTMLResponse)
 async def upload_pdf(
     request: Request,
-    file: Annotated[UploadFile, File(...)],
+    files: Annotated[list[UploadFile], File(...)],
     repository: Annotated[SQLiteRepository, Depends(get_repository)],
     mcq_count: Annotated[int, Form()] = 5,
     fill_blank_count: Annotated[int, Form()] = 0,
 ) -> Response:
     try:
-        filename, content = await _read_pdf_upload(file)
+        if not files:
+            raise ValueError("Please select at least one PDF file.")
+        if len(files) > _MAX_UPLOAD_FILES:
+            raise ValueError(f"Choose at most {_MAX_UPLOAD_FILES} PDF files.")
+
         if mcq_count < 0 or fill_blank_count < 0:
             raise ValueError("Question counts cannot be negative.")
 
@@ -118,29 +160,22 @@ async def upload_pdf(
                 f"Choose between 1 and {_MAX_TOTAL_QUESTIONS} questions in total."
             )
 
-        temporary_path: Path | None = None
-        try:
-            with tempfile.NamedTemporaryFile(
-                suffix=".pdf", delete=False
-            ) as temporary_file:
-                temporary_file.write(content)
-                temporary_path = Path(temporary_file.name)
+        extracted_texts: list[tuple[str, str]] = []
+        for upload in files:
+            filename, content = await _read_pdf_upload(upload)
+            text = _extract_pdf_text(content)
+            if not text.strip():
+                raise ValueError(f"No extractable text was found in {filename}.")
+            extracted_texts.append((filename, text))
 
-            extracted_text = extract_text(temporary_path)
-        finally:
-            if temporary_path:
-                temporary_path.unlink(missing_ok=True)
-
-        if not extracted_text.strip():
-            raise ValueError("No extractable text was found in this PDF.")
-
-        set_id = _make_set_id(filename)
-        repository.save_document_text(set_id, extracted_text)
+        set_id = _make_combined_set_id([filename for filename, _ in extracted_texts])
+        combined_text = _combine_extracted_texts(extracted_texts)
+        repository.save_document_text(set_id, combined_text)
         gateway_client = KSGatewayClient()
         try:
             if mcq_count > 0:
                 mcq_questions = generate_multiple_choice_questions(
-                    paragraph=extracted_text,
+                    paragraph=combined_text,
                     count=mcq_count,
                     client=gateway_client,
                 )
@@ -153,7 +188,7 @@ async def upload_pdf(
 
             if fill_blank_count > 0:
                 fill_blank_questions = generate_fill_blank_questions(
-                    paragraph=extracted_text,
+                    paragraph=combined_text,
                     count=fill_blank_count,
                     client=gateway_client,
                 )
@@ -174,7 +209,8 @@ async def upload_pdf(
             status_code=400,
         )
     finally:
-        await file.close()
+        for upload in files:
+            await upload.close()
 
     return RedirectResponse(url=f"/quiz/{quote(set_id, safe='')}", status_code=303)
 
@@ -405,6 +441,7 @@ def flashcards_page(
             "display_name": _set_display_name(pdf_id),
             "flashcards": flashcards,
             "learning_path_url": f"/learning-path/{quote(pdf_id, safe='')}",
+            "chat_history": _get_chat_history(request, pdf_id),
         },
     )
 
@@ -468,6 +505,7 @@ def _render_learning_path_page(
             "learning_path": learning_path,
             "error_message": error_message,
             "regenerate_url": f"/learning-path/{quote(pdf_id, safe='')}/regenerate",
+            "chat_history": _get_chat_history(request, pdf_id),
         },
     )
 
@@ -501,6 +539,75 @@ def regenerate_learning_path(
 
     return RedirectResponse(
         url=f"/learning-path/{quote(pdf_id, safe='')}", status_code=303
+    )
+
+
+def _get_chat_history(request: Request, pdf_id: str) -> list[dict[str, str]]:
+    raw_histories = request.session.get(_CHAT_HISTORIES_KEY, {})
+    if not isinstance(raw_histories, dict):
+        return []
+
+    raw_history = raw_histories.get(pdf_id, [])
+    if not isinstance(raw_history, list):
+        return []
+
+    return [
+        {"role": str(item["role"]), "content": str(item["content"])}
+        for item in raw_history
+        if isinstance(item, dict) and "role" in item and "content" in item
+    ]
+
+
+def _save_chat_history(
+    request: Request, pdf_id: str, history: list[dict[str, str]]
+) -> None:
+    raw_histories = request.session.get(_CHAT_HISTORIES_KEY, {})
+    histories = dict(raw_histories) if isinstance(raw_histories, dict) else {}
+    histories[pdf_id] = history[-_MAX_CHAT_HISTORY_MESSAGES:]
+    request.session[_CHAT_HISTORIES_KEY] = histories
+
+
+@app.post("/chat/{pdf_id:path}", response_class=HTMLResponse)
+def chat_with_ai(
+    request: Request,
+    pdf_id: str,
+    repository: Annotated[SQLiteRepository, Depends(get_repository)],
+    message: Annotated[str, Form(...)],
+) -> HTMLResponse:
+    trimmed_message = message.strip()[:_MAX_CHAT_MESSAGE_LENGTH]
+    if not trimmed_message:
+        raise HTTPException(status_code=422, detail="Message cannot be empty")
+
+    questions = _get_all_questions_or_404(repository, pdf_id)
+    source_material = _build_learning_path_source_material(
+        repository, pdf_id, questions
+    )
+    history = _get_chat_history(request, pdf_id)
+
+    gateway_client = KSGatewayClient()
+    try:
+        assistant_reply = answer_chat_message(
+            source_material=source_material,
+            history=[(item["role"], item["content"]) for item in history],
+            question=trimmed_message,
+            client=gateway_client,
+        )
+    except (OSError, ValueError, RuntimeError) as error:
+        assistant_reply = f"Sorry, I could not answer that: {error}"
+    finally:
+        gateway_client.close()
+
+    history.append({"role": "user", "content": trimmed_message})
+    history.append({"role": "assistant", "content": assistant_reply})
+    _save_chat_history(request, pdf_id, history)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="chat_message_fragment.html",
+        context={
+            "user_message": trimmed_message,
+            "assistant_reply": assistant_reply,
+        },
     )
 
 
@@ -666,6 +773,7 @@ def _render_quiz_page(
             "total_questions": total_questions,
             "current_question_number": current_question_number,
             "quiz_deadline_iso": quiz_deadline_iso,
+            "chat_history": _get_chat_history(request, pdf_id),
         },
     )
 

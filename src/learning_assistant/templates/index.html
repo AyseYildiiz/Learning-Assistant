@@ -189,8 +189,8 @@
         </div>
         <form id="upload-form" class="upload-card" method="post" action="/upload" enctype="multipart/form-data">
           <h2>Create a study set</h2>
-          <p class="hint">PDF files up to 10 MB. Text-based PDFs work best.</p>
-          <label class="dropzone" for="pdf-file"><strong>Choose your PDF</strong><span class="hint">or drop it here</span><input id="pdf-file" name="file" type="file" accept="application/pdf,.pdf" required></label>
+          <p class="hint">PDF files up to 10 MB each. You can select multiple PDFs at once; questions will be drawn from all of them.</p>
+          <label class="dropzone" for="pdf-file"><strong id="dropzone-label">Choose your PDF(s)</strong><span class="hint">or drop them here</span><input id="pdf-file" name="files" type="file" accept="application/pdf,.pdf" multiple required></label>
           <div class="controls">
             <label for="mcq-count">Multiple choice<input id="mcq-count" class="count-select" type="number" inputmode="numeric" name="mcq_count" min="0" max="20" step="1" value="5"></label>
             <label for="fill-blank-count">Fill in the blank<input id="fill-blank-count" class="count-select" type="number" inputmode="numeric" name="fill_blank_count" min="0" max="20" step="1" value="0"></label>
@@ -252,6 +252,18 @@
         document.getElementById("generate-button").disabled = true;
         document.getElementById("generate-button").textContent = "Generating...";
         document.getElementById("upload-status").hidden = false;
+      });
+
+      document.getElementById("pdf-file").addEventListener("change", function (event) {
+        const label = document.getElementById("dropzone-label");
+        const files = event.target.files;
+        if (!files || files.length === 0) {
+          label.textContent = "Choose your PDF(s)";
+        } else if (files.length === 1) {
+          label.textContent = files[0].name;
+        } else {
+          label.textContent = files.length + " PDFs selected";
+        }
       });
     </script>
   </body>

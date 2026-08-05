@@ -227,3 +227,49 @@ def generate_learning_path(
     finally:
         if own_client:
             gateway_client.close()
+
+
+def build_chat_prompt(
+    source_material: str,
+    history: Sequence[tuple[str, str]],
+    question: str,
+) -> str:
+    prompt_lines = [
+        "You are a helpful study assistant answering questions about the "
+        "study material below.",
+        "Only rely on the study material and the conversation so far to answer.",
+        "If the answer is not covered by the material, say so instead of guessing.",
+        "Respond with plain conversational text. Do not use JSON or markdown code fences.",
+        "",
+        "Study material:",
+        source_material.strip(),
+    ]
+
+    if history:
+        prompt_lines.append("")
+        prompt_lines.append("Conversation so far:")
+        for role, content in history:
+            speaker = "Learner" if role == "user" else "Assistant"
+            prompt_lines.append(f"{speaker}: {content}")
+
+    prompt_lines.extend(["", f"Learner: {question}", "Assistant:"])
+    return "\n".join(prompt_lines)
+
+
+def answer_chat_message(
+    source_material: str,
+    history: Sequence[tuple[str, str]],
+    question: str,
+    client: KSGatewayClient | None = None,
+    model: str | None = None,
+) -> str:
+    gateway_client = client or KSGatewayClient()
+    own_client = client is None
+
+    try:
+        prompt = build_chat_prompt(source_material, history, question)
+        ai_answer = gateway_client.infer(prompt=prompt, model=model)
+        return ai_answer.strip()
+    finally:
+        if own_client:
+            gateway_client.close()

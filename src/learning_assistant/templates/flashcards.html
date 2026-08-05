@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Flashcards | {{ pdf_id }}</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
@@ -172,6 +173,7 @@
         <p class="empty">There are no cards due for review right now.</p>
       {% endif %}
     </main>
+    {% include "chat_widget.html" %}
     <script>
       (function () {
         const key = "studyflow-theme";

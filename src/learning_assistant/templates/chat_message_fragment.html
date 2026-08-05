@@ -1,0 +1,11 @@
+<div class="chat-message chat-message--assistant">
+  <p>{{ assistant_reply }}</p>
+</div>
+<script>
+  (function () {
+    var container = document.getElementById("chat-messages");
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
+  })();
+</script>

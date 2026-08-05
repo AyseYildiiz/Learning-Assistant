@@ -22,6 +22,9 @@ class InferResponse(BaseModel):
     ai_answer: str
 
 
+DEFAULT_MODEL = "qwen3.6-27b"
+
+
 def _raise_for_status(response: httpx.Response, settings: GatewaySettings) -> None:
     try:
         response.raise_for_status()
@@ -39,6 +42,31 @@ def _raise_for_status(response: httpx.Response, settings: GatewaySettings) -> No
             f"{response.request.method} {response.request.url.path} "
             f"returned HTTP {response.status_code}. Response: {response_text}"
         ) from error
+
+
+def _parse_streamed_ai_answer(raw_text: str) -> str:
+    # stream:true responses are server-sent events, one JSON `data:` payload
+    # per chunk (e.g. `{"text": "..."}`), with a final metadata-only chunk.
+    text_parts: list[str] = []
+    for block in raw_text.strip().split("\n\n"):
+        data_lines = [
+            line.removeprefix("data:").strip()
+            for line in block.splitlines()
+            if line.startswith("data:")
+        ]
+        if not data_lines:
+            continue
+
+        try:
+            chunk = json.loads("".join(data_lines))
+        except json.JSONDecodeError:
+            continue
+
+        text = chunk.get("text")
+        if isinstance(text, str):
+            text_parts.append(text)
+
+    return "".join(text_parts)
 
 
 class MultipleChoiceQuestion(BaseModel):
@@ -123,9 +151,9 @@ class KSGatewayClient:
             "prompt": prompt,
             "language": self._settings.response_language,
             "response_format": "json",
+            "model": model or DEFAULT_MODEL,
+            "stream": True,
         }
-        if model is not None:
-            payload["model"] = model
 
         response = self._client.post(
             "/ai/infer",
@@ -134,7 +162,10 @@ class KSGatewayClient:
         )
         _raise_for_status(response, self._settings)
 
-        infer_response = InferResponse.model_validate(response.json())
+        try:
+            infer_response = InferResponse.model_validate(response.json())
+        except (json.JSONDecodeError, ValidationError):
+            return _parse_streamed_ai_answer(response.text)
         return infer_response.ai_answer
 
 
