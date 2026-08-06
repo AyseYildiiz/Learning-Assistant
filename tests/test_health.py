@@ -52,7 +52,9 @@ def test_upload_pdf_generates_and_stores_flashcards(
         def close(self) -> None:
             return None
 
-        def infer(self, prompt: str, model: str | None = None) -> str:
+        def infer(
+            self, prompt: str, model: str | None = None, language: str | None = None
+        ) -> str:
             return '{"question":"What is tested?","options":["This"],"correct_index":0}'
 
     def fake_extract_text(path: Path) -> str:
@@ -105,7 +107,9 @@ def test_upload_multiple_pdfs_combines_them_into_one_study_set(
         def close(self) -> None:
             return None
 
-        def infer(self, prompt: str, model: str | None = None) -> str:
+        def infer(
+            self, prompt: str, model: str | None = None, language: str | None = None
+        ) -> str:
             seen_prompts.append(prompt)
             return '{"question":"What is tested?","options":["This"],"correct_index":0}'
 
@@ -132,7 +136,7 @@ def test_upload_multiple_pdfs_combines_them_into_one_study_set(
                 ("files", ("chapter-one.pdf", b"%PDF-1.7", "application/pdf")),
                 ("files", ("chapter-two.pdf", b"%PDF-1.7", "application/pdf")),
             ],
-            data={"mcq_count": "1"},
+            data={"mcq_count": "2"},
             follow_redirects=False,
         )
         location = response.headers["location"]
@@ -152,5 +156,10 @@ def test_upload_multiple_pdfs_combines_them_into_one_study_set(
     assert document_text is not None
     assert "Chapter one covers photosynthesis." in document_text
     assert "Chapter two covers cellular respiration." in document_text
+    # Question generation round-robins across sources so every uploaded PDF
+    # is actually used, instead of the model only drawing from one of them.
+    assert len(seen_prompts) == 2
     assert "photosynthesis" in seen_prompts[0]
-    assert "cellular respiration" in seen_prompts[0]
+    assert "cellular respiration" not in seen_prompts[0]
+    assert "cellular respiration" in seen_prompts[1]
+    assert "photosynthesis" not in seen_prompts[1]

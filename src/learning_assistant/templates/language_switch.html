@@ -1,0 +1,75 @@
+<style>
+  .lang-switch {
+    position: fixed;
+    top: 16px;
+    right: 72px;
+    z-index: 21;
+    display: flex;
+    gap: 4px;
+    margin: 0;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    border-radius: 999px;
+    padding: 4px;
+    box-shadow: 0 8px 18px rgba(15, 24, 42, 0.18);
+  }
+
+  [data-theme="dark"] .lang-switch {
+    background: rgba(17, 24, 39, 0.92);
+    border-color: rgba(148, 163, 184, 0.25);
+  }
+
+  .lang-switch button {
+    width: auto;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-weight: 700;
+    font-size: 0.78rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .lang-switch button.lang-option--active {
+    background: #2153d8;
+    color: #fff;
+  }
+
+  @media (max-width: 520px) {
+    .lang-switch {
+      right: 64px;
+      padding: 3px;
+    }
+
+    .lang-switch button {
+      padding: 5px 9px;
+      font-size: 0.72rem;
+    }
+  }
+</style>
+<form
+  method="post"
+  action="/settings/language"
+  class="lang-switch"
+  aria-label="{{ t('language_switch_label') }}"
+>
+  <input type="hidden" name="next" value="{{ request.url.path }}" />
+  <button
+    type="submit"
+    name="language"
+    value="en"
+    class="lang-option{{ ' lang-option--active' if language == 'en' else '' }}"
+  >
+    EN
+  </button>
+  <button
+    type="submit"
+    name="language"
+    value="tr"
+    class="lang-option{{ ' lang-option--active' if language == 'tr' else '' }}"
+  >
+    TR
+  </button>
+</form>

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ language }}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>StudyFlow | PDF Learning Assistant</title>
+    <title>{{ t('home_title') }}</title>
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -178,49 +178,50 @@
   </head>
   <body>
     <main class="shell">
-      <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
+      {% include "language_switch.html" %}
+      <button type="button" id="theme-toggle" class="theme-toggle" aria-label="{{ t('toggle_theme') }}" title="{{ t('toggle_theme') }}">
         <span id="theme-toggle-icon" class="theme-toggle-icon">☀</span>
       </button>
-      <div class="brand"><div class="brand-mark">S</div><div><strong>Learning Assistant</strong><span>Turn reading into active recall</span></div></div>
+      <div class="brand"><div class="brand-mark">S</div><div><strong>{{ t('app_name') }}</strong><span>{{ t('app_tagline') }}</span></div></div>
       <section class="hero">
         <div>
-          <h1>Learn from your PDFs, one question at a time.</h1>
-          <p class="lede">Upload a study document and get a focused quiz with spaced-repetition flashcards in seconds.</p>
+          <h1>{{ t('home_heading') }}</h1>
+          <p class="lede">{{ t('home_lede') }}</p>
         </div>
         <form id="upload-form" class="upload-card" method="post" action="/upload" enctype="multipart/form-data">
-          <h2>Create a study set</h2>
-          <p class="hint">PDF files up to 10 MB each. You can select multiple PDFs at once; questions will be drawn from all of them.</p>
-          <label class="dropzone" for="pdf-file"><strong id="dropzone-label">Choose your PDF(s)</strong><span class="hint">or drop them here</span><input id="pdf-file" name="files" type="file" accept="application/pdf,.pdf" multiple required></label>
+          <h2>{{ t('upload_heading') }}</h2>
+          <p class="hint">{{ t('upload_hint') }}</p>
+          <label class="dropzone" for="pdf-file"><strong id="dropzone-label" data-default-text="{{ t('upload_dropzone_label') }}" data-selected-template="{{ t('upload_files_selected') }}">{{ t('upload_dropzone_label') }}</strong><span class="hint">{{ t('upload_dropzone_hint') }}</span><input id="pdf-file" name="files" type="file" accept="application/pdf,.pdf" multiple required></label>
           <div class="controls">
-            <label for="mcq-count">Multiple choice<input id="mcq-count" class="count-select" type="number" inputmode="numeric" name="mcq_count" min="0" max="20" step="1" value="5"></label>
-            <label for="fill-blank-count">Fill in the blank<input id="fill-blank-count" class="count-select" type="number" inputmode="numeric" name="fill_blank_count" min="0" max="20" step="1" value="0"></label>
-            <button id="generate-button" type="submit">Generate set</button>
+            <label for="mcq-count">{{ t('upload_mcq_label') }}<input id="mcq-count" class="count-select" type="number" inputmode="numeric" name="mcq_count" min="0" max="20" step="1" value="5"></label>
+            <label for="fill-blank-count">{{ t('upload_fill_blank_label') }}<input id="fill-blank-count" class="count-select" type="number" inputmode="numeric" name="fill_blank_count" min="0" max="20" step="1" value="0"></label>
+            <button id="generate-button" type="submit" data-default-text="{{ t('upload_submit') }}" data-generating-text="{{ t('upload_submit_generating') }}">{{ t('upload_submit') }}</button>
           </div>
-          <p id="upload-status" class="hint" hidden>Extracting text and creating your quiz...</p>
+          <p id="upload-status" class="hint" hidden>{{ t('upload_status_generating') }}</p>
           {% if error_message %}<p class="message error" role="alert">{{ error_message }}</p>{% endif %}
           {% if success_message %}<p class="message success" role="status">{{ success_message }}</p>{% endif %}
         </form>
       </section>
       <section class="library-card">
-        <h2>Your study sets</h2>
+        <h2>{{ t('library_heading') }}</h2>
         {% if study_sets %}
           <ul class="library-list">
             {% for study_set in study_sets %}
               <li class="set-card">
                 <p class="set-name">{{ study_set.name }}</p>
                 <div class="set-actions">
-                  <a class="cta" href="/quiz/{{ study_set.encoded_id }}">Resume quiz</a>
-                  <a href="/flashcards/{{ study_set.encoded_id }}">Flashcards</a>
-                  <a href="/learning-path/{{ study_set.encoded_id }}">Learning path</a>
-                  <form method="post" action="/sets/{{ study_set.encoded_id }}/delete" onsubmit="return confirm('Delete this study set permanently?');">
-                    <button type="submit" class="danger">Delete</button>
+                  <a class="cta" href="/quiz/{{ study_set.encoded_id }}">{{ t('action_resume_quiz') }}</a>
+                  <a href="/flashcards/{{ study_set.encoded_id }}">{{ t('action_flashcards') }}</a>
+                  <a href="/learning-path/{{ study_set.encoded_id }}">{{ t('action_learning_path') }}</a>
+                  <form method="post" action="/sets/{{ study_set.encoded_id }}/delete" onsubmit="return confirm('{{ t('confirm_delete_set') }}');">
+                    <button type="submit" class="danger">{{ t('action_delete') }}</button>
                   </form>
                 </div>
               </li>
             {% endfor %}
           </ul>
         {% else %}
-          <p class="empty">Your generated study sets will appear here.</p>
+          <p class="empty">{{ t('library_empty') }}</p>
         {% endif %}
       </section>
     </main>
@@ -249,8 +250,9 @@
       })();
 
       document.getElementById("upload-form").addEventListener("submit", function () {
-        document.getElementById("generate-button").disabled = true;
-        document.getElementById("generate-button").textContent = "Generating...";
+        const button = document.getElementById("generate-button");
+        button.disabled = true;
+        button.textContent = button.dataset.generatingText;
         document.getElementById("upload-status").hidden = false;
       });
 
@@ -258,11 +260,11 @@
         const label = document.getElementById("dropzone-label");
         const files = event.target.files;
         if (!files || files.length === 0) {
-          label.textContent = "Choose your PDF(s)";
+          label.textContent = label.dataset.defaultText;
         } else if (files.length === 1) {
           label.textContent = files[0].name;
         } else {
-          label.textContent = files.length + " PDFs selected";
+          label.textContent = label.dataset.selectedTemplate.replace("{count}", files.length);
         }
       });
     </script>

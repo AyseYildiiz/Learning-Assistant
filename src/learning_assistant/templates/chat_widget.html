@@ -149,12 +149,12 @@
   }
 </style>
 
-<button type="button" id="chat-toggle-button" class="chat-toggle-button" aria-label="Chat with AI" title="Chat with AI">💬</button>
+<button type="button" id="chat-toggle-button" class="chat-toggle-button" aria-label="{{ t('chat_toggle_label') }}" title="{{ t('chat_toggle_label') }}">💬</button>
 
 <aside id="chat-panel" class="chat-panel" aria-hidden="true">
   <header class="chat-panel-header">
-    <strong>Chat with AI</strong>
-    <button type="button" id="chat-close-button" class="chat-close-button" aria-label="Close chat">✕</button>
+    <strong>{{ t('chat_toggle_label') }}</strong>
+    <button type="button" id="chat-close-button" class="chat-close-button" aria-label="{{ t('chat_close_label') }}">✕</button>
   </header>
   <div id="chat-messages" class="chat-messages">
     {% if chat_history %}
@@ -164,12 +164,12 @@
         </div>
       {% endfor %}
     {% else %}
-      <p class="chat-hint">Ask a question about {{ display_name }}.</p>
+      <p class="chat-hint">{{ t('chat_hint', name=display_name) }}</p>
     {% endif %}
   </div>
-  <form id="chat-form" class="chat-form" data-chat-url="/chat/{{ pdf_id | urlencode }}">
-    <input type="text" id="chat-message-input" name="message" placeholder="Ask a question..." autocomplete="off" required maxlength="2000">
-    <button id="chat-send-button" type="submit">Send</button>
+  <form id="chat-form" class="chat-form" data-chat-url="/chat/{{ pdf_id | urlencode }}" data-error-text="{{ t('chat_error_generic') }}">
+    <input type="text" id="chat-message-input" name="message" placeholder="{{ t('chat_input_placeholder') }}" autocomplete="off" required maxlength="2000">
+    <button id="chat-send-button" type="submit">{{ t('chat_send_button') }}</button>
   </form>
 </aside>
 
@@ -264,8 +264,7 @@
         })
         .catch(function () {
           typingIndicator.classList.remove("chat-message--typing");
-          typingIndicator.querySelector("p").textContent =
-            "Sorry, something went wrong. Please try again.";
+          typingIndicator.querySelector("p").textContent = form.dataset.errorText;
         })
         .finally(function () {
           input.disabled = false;

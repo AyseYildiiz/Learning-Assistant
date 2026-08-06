@@ -33,7 +33,9 @@ def test_learning_path_page_generates_once_and_caches(
         def close(self) -> None:
             return None
 
-        def infer(self, prompt: str, model: str | None = None) -> str:
+        def infer(
+            self, prompt: str, model: str | None = None, language: str | None = None
+        ) -> str:
             nonlocal infer_calls
             infer_calls += 1
             return (
@@ -76,7 +78,9 @@ def test_learning_path_page_shows_error_when_generation_fails(
         def close(self) -> None:
             return None
 
-        def infer(self, prompt: str, model: str | None = None) -> str:
+        def infer(
+            self, prompt: str, model: str | None = None, language: str | None = None
+        ) -> str:
             return "not valid json"
 
     monkeypatch.setattr("learning_assistant.web.KSGatewayClient", FakeGateway)
@@ -112,7 +116,9 @@ def test_regenerate_learning_path_replaces_stored_content(
         def close(self) -> None:
             return None
 
-        def infer(self, prompt: str, model: str | None = None) -> str:
+        def infer(
+            self, prompt: str, model: str | None = None, language: str | None = None
+        ) -> str:
             return next(responses)
 
     monkeypatch.setattr("learning_assistant.web.KSGatewayClient", FakeGateway)

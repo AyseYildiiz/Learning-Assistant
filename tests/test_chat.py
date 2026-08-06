@@ -31,7 +31,9 @@ def test_chat_returns_fragment_with_assistant_reply(
         def close(self) -> None:
             return None
 
-        def infer(self, prompt: str, model: str | None = None) -> str:
+        def infer(
+            self, prompt: str, model: str | None = None, language: str | None = None
+        ) -> str:
             return "Paris is the capital of France."
 
     monkeypatch.setattr("learning_assistant.web.KSGatewayClient", FakeGateway)
@@ -65,7 +67,9 @@ def test_chat_history_is_included_in_the_next_prompt(
         def close(self) -> None:
             return None
 
-        def infer(self, prompt: str, model: str | None = None) -> str:
+        def infer(
+            self, prompt: str, model: str | None = None, language: str | None = None
+        ) -> str:
             seen_prompts.append(prompt)
             return f"reply-{len(seen_prompts)}"
 
@@ -136,7 +140,9 @@ def test_chat_history_survives_a_page_reload(
         def close(self) -> None:
             return None
 
-        def infer(self, prompt: str, model: str | None = None) -> str:
+        def infer(
+            self, prompt: str, model: str | None = None, language: str | None = None
+        ) -> str:
             return "Paris is the capital of France."
 
     monkeypatch.setattr("learning_assistant.web.KSGatewayClient", FakeGateway)

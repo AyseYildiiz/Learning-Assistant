@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ language }}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Learning path | {{ pdf_id }}</title>
+    <title>{{ t('learning_path_title') }} | {{ pdf_id }}</title>
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -240,26 +240,27 @@
   </head>
   <body>
     <main>
-      <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
+      {% include "language_switch.html" %}
+      <button type="button" id="theme-toggle" class="theme-toggle" aria-label="{{ t('toggle_theme') }}" title="{{ t('toggle_theme') }}">
         <span id="theme-toggle-icon" class="theme-toggle-icon">☀</span>
       </button>
       <header>
-        <h1>Learning path</h1>
-        <p class="muted">A guided route through {{ display_name }}</p>
+        <h1>{{ t('learning_path_title') }}</h1>
+        <p class="muted">{{ t('learning_path_subtitle', name=display_name) }}</p>
         <div class="header-links">
-          <a href="/quiz/{{ pdf_id | urlencode }}">Start quiz</a>
-          <a href="/flashcards/{{ pdf_id | urlencode }}">Flashcards</a>
-          <a href="/">Back to library</a>
+          <a href="/quiz/{{ pdf_id | urlencode }}">{{ t('nav_start_quiz') }}</a>
+          <a href="/flashcards/{{ pdf_id | urlencode }}">{{ t('action_flashcards') }}</a>
+          <a href="/">{{ t('nav_back_to_library') }}</a>
         </div>
       </header>
 
       {% if error_message %}
-        <p class="error" role="alert">Could not generate a learning path: {{ error_message }}</p>
+        <p class="error" role="alert">{{ t('learning_path_error_prefix', error=error_message) }}</p>
       {% endif %}
 
       {% if learning_path %}
         <section class="overview-card">
-          <h2>Overview</h2>
+          <h2>{{ t('learning_path_overview_heading') }}</h2>
           <p>{{ learning_path.overview }}</p>
         </section>
 
@@ -288,11 +289,11 @@
           {% endfor %}
         </ol>
       {% elif not error_message %}
-        <p class="empty">No learning path is available for this study set yet.</p>
+        <p class="empty">{{ t('learning_path_empty') }}</p>
       {% endif %}
 
       <form class="regenerate-form" method="post" action="{{ regenerate_url }}">
-        <button type="submit">Regenerate learning path</button>
+        <button type="submit">{{ t('learning_path_regenerate_button') }}</button>
       </form>
     </main>
     {% include "chat_widget.html" %}

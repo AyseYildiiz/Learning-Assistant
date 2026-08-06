@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ language }}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Learning Assistant Quiz</title>
+    <title>{{ t('app_name') }} {{ t('quiz_session_heading') }}</title>
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -123,7 +123,8 @@
     </style>
   </head>
   <body>
-    <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
+    {% include "language_switch.html" %}
+    <button type="button" id="theme-toggle" class="theme-toggle" aria-label="{{ t('toggle_theme') }}" title="{{ t('toggle_theme') }}">
       <span id="theme-toggle-icon" class="theme-toggle-icon">☀</span>
     </button>
     <main class="page-shell">

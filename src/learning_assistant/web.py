@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import functools
 import os
 import random
 import re
@@ -16,6 +17,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
+from learning_assistant.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, translate
 from learning_assistant.ks_gateway import KSGatewayClient, LearningPath
 from learning_assistant.pdf_extract import extract_text
 from learning_assistant.question_generation import (
@@ -56,9 +58,54 @@ _MIN_QUIZ_SECONDS = 60
 _CHAT_HISTORIES_KEY = "chat_histories"
 _MAX_CHAT_HISTORY_MESSAGES = 12
 _MAX_CHAT_MESSAGE_LENGTH = 2000
+_LANGUAGE_SESSION_KEY = "language"
 _SET_ID_PATTERN = re.compile(
     r"^(?P<stem>.+)-(?P<stamp>\d{14})-(?P<token>[0-9a-f]{4})(?P<ext>\.pdf)$"
 )
+
+
+def _get_language(request: Request) -> str:
+    language = request.session.get(_LANGUAGE_SESSION_KEY)
+    if language in SUPPORTED_LANGUAGES:
+        return str(language)
+    return DEFAULT_LANGUAGE
+
+
+def _is_safe_redirect_target(target: str) -> bool:
+    return target.startswith("/") and not target.startswith("//") and ":" not in target
+
+
+@app.post("/settings/language")
+def set_language(
+    request: Request,
+    language: Annotated[str, Form(...)],
+    next: Annotated[str, Form()] = "/",
+) -> RedirectResponse:
+    if language in SUPPORTED_LANGUAGES:
+        request.session[_LANGUAGE_SESSION_KEY] = language
+
+    redirect_target = next if _is_safe_redirect_target(next) else "/"
+    return RedirectResponse(url=redirect_target, status_code=303)
+
+
+def _render_template(
+    request: Request,
+    name: str,
+    context: dict[str, Any],
+    status_code: int = 200,
+) -> HTMLResponse:
+    language = _get_language(request)
+    response = templates.TemplateResponse(
+        request=request,
+        name=name,
+        context={
+            **context,
+            "language": language,
+            "t": functools.partial(translate, language),
+        },
+    )
+    response.status_code = status_code
+    return response
 
 
 def get_repository(request: Request) -> SQLiteRepository:
@@ -84,14 +131,14 @@ def home_page(
     return _render_home_page(request, repository)
 
 
-async def _read_pdf_upload(upload: UploadFile) -> tuple[str, bytes]:
+async def _read_pdf_upload(upload: UploadFile, language: str) -> tuple[str, bytes]:
     filename = Path(upload.filename or "").name
     if not filename or Path(filename).suffix.lower() != ".pdf":
-        raise ValueError("Please select a PDF file.")
+        raise ValueError(translate(language, "error_please_select_pdf"))
 
     content = await upload.read(_MAX_UPLOAD_BYTES + 1)
     if len(content) > _MAX_UPLOAD_BYTES:
-        raise ValueError("The PDF must be smaller than 10 MB.")
+        raise ValueError(translate(language, "error_pdf_too_large"))
 
     return filename, content
 
@@ -145,27 +192,36 @@ async def upload_pdf(
     mcq_count: Annotated[int, Form()] = 5,
     fill_blank_count: Annotated[int, Form()] = 0,
 ) -> Response:
+    language = _get_language(request)
     try:
         if not files:
-            raise ValueError("Please select at least one PDF file.")
+            raise ValueError(translate(language, "error_select_at_least_one_pdf"))
         if len(files) > _MAX_UPLOAD_FILES:
-            raise ValueError(f"Choose at most {_MAX_UPLOAD_FILES} PDF files.")
+            raise ValueError(
+                translate(language, "error_too_many_files", max=_MAX_UPLOAD_FILES)
+            )
 
         if mcq_count < 0 or fill_blank_count < 0:
-            raise ValueError("Question counts cannot be negative.")
+            raise ValueError(translate(language, "error_question_counts_negative"))
 
         total_count = mcq_count + fill_blank_count
         if total_count < 1 or total_count > _MAX_TOTAL_QUESTIONS:
             raise ValueError(
-                f"Choose between 1 and {_MAX_TOTAL_QUESTIONS} questions in total."
+                translate(
+                    language,
+                    "error_question_count_range",
+                    max=_MAX_TOTAL_QUESTIONS,
+                )
             )
 
         extracted_texts: list[tuple[str, str]] = []
         for upload in files:
-            filename, content = await _read_pdf_upload(upload)
+            filename, content = await _read_pdf_upload(upload, language)
             text = _extract_pdf_text(content)
             if not text.strip():
-                raise ValueError(f"No extractable text was found in {filename}.")
+                raise ValueError(
+                    translate(language, "error_no_extractable_text", filename=filename)
+                )
             extracted_texts.append((filename, text))
 
         set_id = _make_combined_set_id([filename for filename, _ in extracted_texts])
@@ -178,6 +234,8 @@ async def upload_pdf(
                     paragraph=combined_text,
                     count=mcq_count,
                     client=gateway_client,
+                    language=language,
+                    sources=extracted_texts,
                 )
                 for mcq_question in mcq_questions:
                     save_generated_question_with_flashcard(
@@ -191,6 +249,8 @@ async def upload_pdf(
                     paragraph=combined_text,
                     count=fill_blank_count,
                     client=gateway_client,
+                    language=language,
+                    sources=extracted_texts,
                 )
                 for fill_blank_question in fill_blank_questions:
                     save_generated_fill_blank_with_flashcard(
@@ -416,7 +476,7 @@ def timeout_quiz(
         question=None,
         correct_count=correct_count,
         incorrect_count=incorrect_count,
-        feedback_message="Time's up.",
+        feedback_message=translate(_get_language(request), "quiz_time_up"),
         completed=True,
         score_out_of_100=score,
         total_questions=total_questions,
@@ -433,7 +493,7 @@ def flashcards_page(
 ) -> HTMLResponse:
     flashcards = repository.get_all_flashcards_for_source_pdf(pdf_id)
 
-    return templates.TemplateResponse(
+    return _render_template(
         request=request,
         name="flashcards.html",
         context={
@@ -463,7 +523,7 @@ def _build_learning_path_source_material(
 
 
 def _generate_and_save_learning_path(
-    repository: SQLiteRepository, pdf_id: str
+    repository: SQLiteRepository, pdf_id: str, language: str
 ) -> LearningPath:
     questions = _get_all_questions_or_404(repository, pdf_id)
     source_material = _build_learning_path_source_material(
@@ -472,7 +532,7 @@ def _generate_and_save_learning_path(
     gateway_client = KSGatewayClient()
     try:
         learning_path = generate_learning_path(
-            paragraph=source_material, client=gateway_client
+            paragraph=source_material, client=gateway_client, language=language
         )
     finally:
         gateway_client.close()
@@ -481,12 +541,12 @@ def _generate_and_save_learning_path(
 
 
 def _get_or_generate_learning_path(
-    repository: SQLiteRepository, pdf_id: str
+    repository: SQLiteRepository, pdf_id: str, language: str
 ) -> LearningPath:
     existing_record = repository.get_learning_path(pdf_id)
     if existing_record is not None:
         return LearningPath.model_validate_json(existing_record.content_json)
-    return _generate_and_save_learning_path(repository, pdf_id)
+    return _generate_and_save_learning_path(repository, pdf_id, language)
 
 
 def _render_learning_path_page(
@@ -496,7 +556,7 @@ def _render_learning_path_page(
     *,
     error_message: str | None = None,
 ) -> HTMLResponse:
-    return templates.TemplateResponse(
+    return _render_template(
         request=request,
         name="learning_path.html",
         context={
@@ -517,8 +577,9 @@ def learning_path_page(
     repository: Annotated[SQLiteRepository, Depends(get_repository)],
 ) -> HTMLResponse:
     _get_all_questions_or_404(repository, pdf_id)
+    language = _get_language(request)
     try:
-        learning_path = _get_or_generate_learning_path(repository, pdf_id)
+        learning_path = _get_or_generate_learning_path(repository, pdf_id, language)
     except (OSError, ValueError, RuntimeError) as error:
         return _render_learning_path_page(
             request, pdf_id, None, error_message=str(error)
@@ -534,8 +595,9 @@ def regenerate_learning_path(
     repository: Annotated[SQLiteRepository, Depends(get_repository)],
 ) -> RedirectResponse:
     _get_all_questions_or_404(repository, pdf_id)
+    language = _get_language(request)
     with contextlib.suppress(OSError, ValueError, RuntimeError):
-        _generate_and_save_learning_path(repository, pdf_id)
+        _generate_and_save_learning_path(repository, pdf_id, language)
 
     return RedirectResponse(
         url=f"/learning-path/{quote(pdf_id, safe='')}", status_code=303
@@ -576,13 +638,17 @@ def chat_with_ai(
 ) -> HTMLResponse:
     trimmed_message = message.strip()[:_MAX_CHAT_MESSAGE_LENGTH]
     if not trimmed_message:
-        raise HTTPException(status_code=422, detail="Message cannot be empty")
+        raise HTTPException(
+            status_code=422,
+            detail=translate(_get_language(request), "chat_error_empty_message"),
+        )
 
     questions = _get_all_questions_or_404(repository, pdf_id)
     source_material = _build_learning_path_source_material(
         repository, pdf_id, questions
     )
     history = _get_chat_history(request, pdf_id)
+    language = _get_language(request)
 
     gateway_client = KSGatewayClient()
     try:
@@ -591,9 +657,12 @@ def chat_with_ai(
             history=[(item["role"], item["content"]) for item in history],
             question=trimmed_message,
             client=gateway_client,
+            language=language,
         )
     except (OSError, ValueError, RuntimeError) as error:
-        assistant_reply = f"Sorry, I could not answer that: {error}"
+        assistant_reply = translate(
+            language, "chat_answer_failed_prefix", error=str(error)
+        )
     finally:
         gateway_client.close()
 
@@ -650,10 +719,12 @@ def answer_question(
 
     if is_correct:
         state["correct_count"] += 1
-        feedback_message = "Correct answer."
+        feedback_message = translate(_get_language(request), "quiz_feedback_correct")
     else:
         state["incorrect_count"] += 1
-        feedback_message = f"Incorrect. Correct answer: {correct_answer}"
+        feedback_message = translate(
+            _get_language(request), "quiz_feedback_incorrect", answer=correct_answer
+        )
         queue.append(question_id)
 
     flashcard = repository.get_flashcard_by_question_id(question_id)
@@ -719,13 +790,13 @@ def delete_set(
         return _render_home_page(
             request,
             repository,
-            success_message="Study set deleted.",
+            success_message=translate(_get_language(request), "success_set_deleted"),
         )
 
     return _render_home_page(
         request,
         repository,
-        error_message="Study set not found.",
+        error_message=translate(_get_language(request), "error_set_not_found"),
         status_code=404,
     )
 
@@ -753,7 +824,7 @@ def _render_quiz_page(
     # would nest an entire new page (including the theme toggle button and
     # page padding) inside the previous one on every answer.
     template_name = "quiz_panel.html" if _is_htmx_request(request) else "quiz.html"
-    return templates.TemplateResponse(
+    return _render_template(
         request=request,
         name=template_name,
         context={
@@ -809,7 +880,7 @@ def _render_home_page(
     success_message: str | None = None,
     status_code: int = 200,
 ) -> HTMLResponse:
-    response = templates.TemplateResponse(
+    return _render_template(
         request=request,
         name="index.html",
         context={
@@ -817,7 +888,5 @@ def _render_home_page(
             "error_message": error_message,
             "success_message": success_message,
         },
+        status_code=status_code,
     )
-
-    response.status_code = status_code
-    return response

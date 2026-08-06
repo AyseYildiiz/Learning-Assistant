@@ -7,6 +7,7 @@ from learning_assistant.question_generation import (
     generate_fill_blank_questions,
     generate_learning_path,
     generate_multiple_choice_question,
+    generate_multiple_choice_questions,
 )
 from learning_assistant.settings import GatewaySettings
 
@@ -115,6 +116,68 @@ def test_generate_fill_blank_questions_parses_response() -> None:
 
     assert len(questions) == 1
     assert questions[0].answer == "chemical"
+
+
+def test_generate_multiple_choice_questions_round_robins_across_sources() -> None:
+    seen_prompts: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/auth/token":
+            return httpx.Response(
+                200,
+                json={
+                    "access_token": "token-abc",
+                    "token_type": "bearer",
+                    "expires_in": 3600,
+                },
+            )
+
+        if request.url.path == "/ai/infer":
+            payload = json.loads(request.content.decode("utf-8"))
+            seen_prompts.append(payload["prompt"])
+            return httpx.Response(
+                200,
+                json={
+                    "ai_answer": (
+                        '{"question":"What is tested?","options":'
+                        '["A","B","C","D"],"correct_index":0}'
+                    ),
+                    "language": "en-US",
+                    "response_format": "json",
+                    "response_time_ms": 10,
+                },
+            )
+
+        return httpx.Response(404)
+
+    settings = GatewaySettings.model_validate(
+        {
+            "KS_CLIENT_ID": "client-id",
+            "KS_CLIENT_SECRET": "client-secret",
+            "KS_BASE_URL": "https://gateway.example.test",
+        }
+    )
+    client = KSGatewayClient(settings=settings, transport=httpx.MockTransport(handler))
+
+    sources = [
+        ("chapter-one.pdf", "Chapter one covers photosynthesis."),
+        ("chapter-two.pdf", "Chapter two covers cellular respiration."),
+    ]
+    combined_text = "\n\n".join(text for _, text in sources)
+
+    questions = generate_multiple_choice_questions(
+        paragraph=combined_text,
+        count=2,
+        client=client,
+        sources=sources,
+    )
+
+    assert len(questions) == 2
+    assert len(seen_prompts) == 2
+    assert "photosynthesis" in seen_prompts[0]
+    assert "cellular respiration" not in seen_prompts[0]
+    assert "cellular respiration" in seen_prompts[1]
+    assert "photosynthesis" not in seen_prompts[1]
 
 
 def test_generate_learning_path_parses_response() -> None:

@@ -145,11 +145,16 @@ class KSGatewayClient:
         )
         return token_response.access_token
 
-    def infer(self, prompt: str, model: str | None = None) -> str:
+    def infer(
+        self,
+        prompt: str,
+        model: str | None = None,
+        language: str | None = None,
+    ) -> str:
         token = self.get_token()
         payload: dict[str, Any] = {
             "prompt": prompt,
-            "language": self._settings.response_language,
+            "language": language or self._settings.response_language,
             "response_format": "json",
             "model": model or DEFAULT_MODEL,
             "stream": True,
