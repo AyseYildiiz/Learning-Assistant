@@ -51,6 +51,15 @@ class LearningPathRecord:
     created_at: datetime
 
 
+@dataclass(slots=True)
+class UserRecord:
+    id: int
+    username: str
+    password_hash: str
+    salt: str
+    created_at: datetime
+
+
 class SQLiteRepository:
     def __init__(self, db_path: str | Path) -> None:
         db_path_text = str(db_path)
@@ -164,6 +173,110 @@ class SQLiteRepository:
         ).fetchall()
         return [str(row["source_pdf"]) for row in rows]
 
+    def get_source_pdfs_for_user(self, user_id: int) -> list[str]:
+        rows = self._connection.execute(
+            """
+            SELECT DISTINCT set_owners.source_pdf
+            FROM set_owners
+            JOIN questions ON questions.source_pdf = set_owners.source_pdf
+            WHERE set_owners.user_id = ?
+            ORDER BY set_owners.source_pdf
+            """,
+            (user_id,),
+        ).fetchall()
+        return [str(row["source_pdf"]) for row in rows]
+
+    def assign_set_owner(self, source_pdf: str | Path, user_id: int) -> None:
+        with self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO set_owners (source_pdf, user_id)
+                VALUES (?, ?)
+                ON CONFLICT(source_pdf) DO UPDATE SET user_id = excluded.user_id
+                """,
+                (str(source_pdf), user_id),
+            )
+
+    def get_set_owner_user_id(self, source_pdf: str | Path) -> int | None:
+        row = self._connection.execute(
+            "SELECT user_id FROM set_owners WHERE source_pdf = ?",
+            (str(source_pdf),),
+        ).fetchone()
+        if row is None:
+            return None
+        return int(row["user_id"])
+
+    def create_user(
+        self,
+        username: str,
+        password_hash: str,
+        salt: str,
+        created_at: datetime | None = None,
+    ) -> UserRecord:
+        created_time = _ensure_utc_datetime(created_at or datetime.now(UTC))
+        try:
+            with self._connection:
+                cursor = self._connection.execute(
+                    """
+                    INSERT INTO users (username, password_hash, salt, created_at)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (username, password_hash, salt, _serialize_datetime(created_time)),
+                )
+        except sqlite3.IntegrityError as error:
+            raise ValueError(f"Username '{username}' is already taken") from error
+
+        if cursor.lastrowid is None:
+            raise RuntimeError("Failed to persist user record")
+
+        return UserRecord(
+            id=int(cursor.lastrowid),
+            username=username,
+            password_hash=password_hash,
+            salt=salt,
+            created_at=created_time,
+        )
+
+    def get_user_by_username(self, username: str) -> UserRecord | None:
+        row = self._connection.execute(
+            "SELECT id, username, password_hash, salt, created_at "
+            "FROM users WHERE username = ?",
+            (username,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_user(row)
+
+    def get_user_by_id(self, user_id: int) -> UserRecord | None:
+        row = self._connection.execute(
+            "SELECT id, username, password_hash, salt, created_at "
+            "FROM users WHERE id = ?",
+            (user_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_user(row)
+
+    def update_user_password(self, user_id: int, password_hash: str, salt: str) -> None:
+        with self._connection:
+            self._connection.execute(
+                """
+                UPDATE users
+                SET password_hash = ?, salt = ?
+                WHERE id = ?
+                """,
+                (password_hash, salt, user_id),
+            )
+
+    def _row_to_user(self, row: sqlite3.Row) -> UserRecord:
+        return UserRecord(
+            id=int(row["id"]),
+            username=str(row["username"]),
+            password_hash=str(row["password_hash"]),
+            salt=str(row["salt"]),
+            created_at=_parse_datetime(str(row["created_at"])),
+        )
+
     def delete_set(self, source_pdf: str | Path) -> bool:
         normalized_source_pdf = str(source_pdf)
         with self._connection:
@@ -177,6 +290,10 @@ class SQLiteRepository:
             )
             self._connection.execute(
                 "DELETE FROM learning_paths WHERE source_pdf = ?",
+                (normalized_source_pdf,),
+            )
+            self._connection.execute(
+                "DELETE FROM set_owners WHERE source_pdf = ?",
                 (normalized_source_pdf,),
             )
 
@@ -240,6 +357,19 @@ class SQLiteRepository:
                 source_pdf TEXT NOT NULL UNIQUE,
                 content_json TEXT NOT NULL,
                 created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                salt TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS set_owners (
+                source_pdf TEXT PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE
             );
             """
             )

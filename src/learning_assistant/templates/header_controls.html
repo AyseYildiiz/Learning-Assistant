@@ -1,0 +1,189 @@
+<style>
+  .header-controls {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 21;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .header-controls .theme-toggle {
+    /* Each page's own stylesheet defines a fixed-positioned .theme-toggle;
+       cancel that positioning here so it sits inline in this flex row
+       instead of floating independently over it. */
+    position: static;
+    top: auto;
+    right: auto;
+    z-index: auto;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
+    border-radius: 999px;
+    width: 2.85rem;
+    height: 2.85rem;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    font-weight: 700;
+    box-shadow: 0 8px 18px rgba(15, 24, 42, 0.22);
+  }
+
+  .header-controls .lang-switch {
+    display: flex;
+    gap: 4px;
+    margin: 0;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 4px;
+    box-shadow: 0 8px 18px rgba(15, 24, 42, 0.18);
+  }
+
+  .header-controls .lang-switch button {
+    width: auto;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-weight: 700;
+    font-size: 0.78rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .header-controls .lang-switch button.lang-option--active {
+    background: #2153d8;
+    color: #fff;
+  }
+
+  .profile-menu {
+    position: relative;
+  }
+
+  .profile-button {
+    width: 2.85rem;
+    height: 2.85rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    display: inline-grid;
+    place-items: center;
+    cursor: pointer;
+    box-shadow: 0 8px 18px rgba(15, 24, 42, 0.16);
+  }
+
+  .profile-dropdown {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 8px);
+    min-width: 160px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: 0 8px 18px rgba(15, 24, 42, 0.18);
+    padding: 8px;
+    display: none;
+    z-index: 30;
+  }
+
+  .profile-dropdown a,
+  .profile-dropdown form button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 8px 10px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-decoration: none;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .profile-dropdown a:hover,
+  .profile-dropdown form button:hover {
+    background: color-mix(in srgb, var(--primary), var(--surface) 8%);
+  }
+
+  .profile-dropdown form { margin: 0 }
+
+  @media (max-width: 520px) {
+    .header-controls { right: 8px }
+    .header-controls .lang-switch button { padding: 5px 9px; font-size: 0.72rem }
+  }
+</style>
+
+<div class="header-controls">
+  <form id="language-switch-form" method="post" action="/settings/language" class="lang-switch" aria-label="{{ t('language_switch_label') }}">
+    <input type="hidden" name="next" value="{{ current_path }}" />
+    <button type="submit" name="language" value="en" class="lang-option{{ ' lang-option--active' if language == 'en' else '' }}">EN</button>
+    <button type="submit" name="language" value="tr" class="lang-option{{ ' lang-option--active' if language == 'tr' else '' }}">TR</button>
+  </form>
+
+  <button type="button" id="theme-toggle" class="theme-toggle" aria-label="{{ t('toggle_theme') }}" title="{{ t('toggle_theme') }}">
+    <span id="theme-toggle-icon" class="theme-toggle-icon">☀</span>
+  </button>
+
+  {% if current_user_id %}
+  <div class="profile-menu" id="profile-menu">
+    <button type="button" id="profile-button" class="profile-button" aria-haspopup="true" aria-expanded="false">
+      <span aria-hidden="true">👤</span>
+    </button>
+    <div class="profile-dropdown" id="profile-dropdown" role="menu">
+      <a href="/profile">{{ t('profile_my_profile') }}</a>
+      <form method="post" action="/logout">
+        <button type="submit">{{ t('auth_logout_button') }}</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+  (function () {
+    // language switch background-submit behavior (keeps file inputs intact)
+    const form = document.getElementById("language-switch-form");
+    if (form) {
+      form.addEventListener("submit", function (event) {
+        const fileInput = document.getElementById("pdf-file");
+        const hasSelectedFiles = Boolean(fileInput?.files?.length);
+        if (!hasSelectedFiles) return;
+        const language = event.submitter ? event.submitter.value : null;
+        if (!language) return;
+        event.preventDefault();
+        const formData = new FormData(form);
+        formData.set("language", language);
+        fetch(form.action, { method: "POST", body: formData }).then(function () {
+          form.querySelectorAll(".lang-option").forEach(function (button) {
+            button.classList.toggle("lang-option--active", button.value === language);
+          });
+        });
+      });
+    }
+
+    // profile dropdown toggle
+    const profileButton = document.getElementById("profile-button");
+    const profileDropdown = document.getElementById("profile-dropdown");
+    if (profileButton && profileDropdown) {
+      profileButton.addEventListener("click", function () {
+        const expanded = profileButton.getAttribute("aria-expanded") === "true";
+        profileButton.setAttribute("aria-expanded", String(!expanded));
+        profileDropdown.style.display = expanded ? "none" : "block";
+      });
+      document.addEventListener("click", function (ev) {
+        if (!profileButton.contains(ev.target) && !profileDropdown.contains(ev.target)) {
+          profileButton.setAttribute("aria-expanded", "false");
+          profileDropdown.style.display = "none";
+        }
+      });
+    }
+
+    // theme toggle is handled by each page's own script (localStorage key
+    // "studyflow-theme"); this partial only wires up language-switch and
+    // profile-dropdown behavior to avoid double-toggling the same button.
+  })();
+</script>

@@ -203,6 +203,67 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Could not generate a valid learning path.",
         "tr": "Geçerli bir öğrenme haritası oluşturulamadı.",
     },
+    "auth_logout_button": {"en": "Log out", "tr": "Çıkış yap"},
+    "auth_username_label": {"en": "Username", "tr": "Kullanıcı adı"},
+    "auth_password_label": {"en": "Password", "tr": "Şifre"},
+    "auth_confirm_password_label": {
+        "en": "Confirm password",
+        "tr": "Şifreyi onayla",
+    },
+    "auth_login_heading": {"en": "Log in", "tr": "Giriş yap"},
+    "auth_login_submit": {"en": "Log in", "tr": "Giriş yap"},
+    "auth_login_no_account": {
+        "en": "Don't have an account?",
+        "tr": "Hesabınız yok mu?",
+    },
+    "auth_login_signup_link": {"en": "Sign up", "tr": "Kayıt ol"},
+    "auth_signup_heading": {"en": "Create an account", "tr": "Hesap oluştur"},
+    "auth_signup_submit": {"en": "Sign up", "tr": "Kayıt ol"},
+    "auth_signup_password_hint": {
+        "en": "At least 8 characters, with both a letter and a number.",
+        "tr": "En az 8 karakter, hem harf hem de rakam içermeli.",
+    },
+    "auth_signup_has_account": {
+        "en": "Already have an account?",
+        "tr": "Zaten bir hesabınız var mı?",
+    },
+    "auth_signup_login_link": {"en": "Log in", "tr": "Giriş yap"},
+    "error_invalid_username": {
+        "en": "Username must be 3-32 characters (letters, numbers, ., _ or -).",
+        "tr": (
+            "Kullanıcı adı 3-32 karakter olmalı (harf, rakam, ., _ veya - içerebilir)."
+        ),
+    },
+    "error_username_taken": {
+        "en": "That username is already taken.",
+        "tr": "Bu kullanıcı adı zaten alınmış.",
+    },
+    "error_invalid_credentials": {
+        "en": "Invalid username or password.",
+        "tr": "Kullanıcı adı veya şifre hatalı.",
+    },
+    "error_password_too_short": {
+        "en": "Password must be at least 8 characters long.",
+        "tr": "Şifre en az 8 karakter olmalıdır.",
+    },
+    "error_password_needs_letter_and_digit": {
+        "en": "Password must contain both a letter and a number.",
+        "tr": "Şifre hem harf hem de rakam içermelidir.",
+    },
+    "error_passwords_do_not_match": {
+        "en": "Passwords do not match.",
+        "tr": "Şifreler eşleşmiyor.",
+    },
+    "profile_title": {"en": "My profile", "tr": "Profilim"},
+    "profile_my_profile": {"en": "My profile", "tr": "Profilim"},
+    "profile_change_password_hint": {"en": "You can change your account password here.", "tr": "Hesap şifrenizi burada değiştirebilirsiniz."},
+    "profile_current_password_label": {"en": "Current password", "tr": "Mevcut şifre"},
+    "profile_new_password_label": {"en": "New password", "tr": "Yeni şifre"},
+    "profile_confirm_new_password_label": {"en": "Confirm new password", "tr": "Yeni şifreyi onayla"},
+    "profile_update_password_submit": {"en": "Update password", "tr": "Şifreyi güncelle"},
+    "profile_password_updated_success": {"en": "Password updated.", "tr": "Şifre güncellendi."},
+    "error_invalid_current_password": {"en": "Current password is incorrect.", "tr": "Mevcut şifre hatalı."},
+    "profile_back_to_home": {"en": "Back to home", "tr": "Ana sayfaya dön"},
 }
 
 

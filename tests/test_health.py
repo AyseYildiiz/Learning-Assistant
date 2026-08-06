@@ -7,6 +7,8 @@ from fastapi.testclient import TestClient
 from learning_assistant.main import app
 from learning_assistant.storage import SQLiteRepository
 
+from conftest import authenticate
+
 
 def test_health_endpoint() -> None:
     client = TestClient(app)
@@ -29,7 +31,9 @@ def test_home_page_lists_stored_source_pdfs(tmp_path: Path) -> None:
     app.state.repository = repository
 
     try:
-        response = TestClient(app).get("/")
+        client = TestClient(app)
+        authenticate(client, repository, "my-document.pdf")
+        response = client.get("/")
     finally:
         repository.close()
         if previous_repository is None:
@@ -66,6 +70,7 @@ def test_upload_pdf_generates_and_stores_flashcards(
 
     try:
         client = TestClient(app)
+        authenticate(client, repository)
         response = client.post(
             "/upload",
             files={"files": ("lesson.pdf", b"%PDF-1.7", "application/pdf")},
@@ -130,6 +135,7 @@ def test_upload_multiple_pdfs_combines_them_into_one_study_set(
 
     try:
         client = TestClient(app)
+        authenticate(client, repository)
         response = client.post(
             "/upload",
             files=[

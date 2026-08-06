@@ -178,10 +178,7 @@
   </head>
   <body>
     <main class="shell">
-      {% include "language_switch.html" %}
-      <button type="button" id="theme-toggle" class="theme-toggle" aria-label="{{ t('toggle_theme') }}" title="{{ t('toggle_theme') }}">
-        <span id="theme-toggle-icon" class="theme-toggle-icon">☀</span>
-      </button>
+      {% include "header_controls.html" %}
       <div class="brand"><div class="brand-mark">S</div><div><strong>{{ t('app_name') }}</strong><span>{{ t('app_tagline') }}</span></div></div>
       <section class="hero">
         <div>

@@ -123,16 +123,12 @@
     </style>
   </head>
   <body>
-    {% include "language_switch.html" %}
-    <button type="button" id="theme-toggle" class="theme-toggle" aria-label="{{ t('toggle_theme') }}" title="{{ t('toggle_theme') }}">
-      <span id="theme-toggle-icon" class="theme-toggle-icon">☀</span>
-    </button>
+    {% include "header_controls.html" %}
     <main class="page-shell">
       <div class="page-frame">
         {% include "quiz_panel.html" %}
       </div>
     </main>
-    {% include "chat_widget.html" %}
     <script>
       (function () {
         const key = "studyflow-theme";

@@ -240,10 +240,7 @@
   </head>
   <body>
     <main>
-      {% include "language_switch.html" %}
-      <button type="button" id="theme-toggle" class="theme-toggle" aria-label="{{ t('toggle_theme') }}" title="{{ t('toggle_theme') }}">
-        <span id="theme-toggle-icon" class="theme-toggle-icon">☀</span>
-      </button>
+      {% include "header_controls.html" %}
       <header>
         <h1>{{ t('learning_path_title') }}</h1>
         <p class="muted">{{ t('learning_path_subtitle', name=display_name) }}</p>

@@ -9,6 +9,8 @@ from fastapi.testclient import TestClient
 from learning_assistant.main import app
 from learning_assistant.storage import SQLiteRepository
 
+from conftest import authenticate
+
 
 def test_quiz_flow_advances_with_htmx_partial_updates(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -46,6 +48,7 @@ def test_quiz_flow_advances_with_htmx_partial_updates(
 
     try:
         with TestClient(app) as client:
+            authenticate(client, repository, "chapter-1.pdf")
             page_response = client.get("/quiz/chapter-1.pdf")
             assert page_response.status_code == 200
             assert "What is 2 + 2?" in page_response.text
@@ -122,6 +125,7 @@ def test_quiz_resumes_if_unfinished_and_restarts_if_completed(
 
     try:
         with TestClient(app) as client:
+            authenticate(client, repository, "session.pdf")
             start_response = client.get("/quiz/session.pdf")
             assert start_response.status_code == 200
             assert "Question one?" in start_response.text
@@ -172,6 +176,7 @@ def test_htmx_answer_request_returns_bare_panel_fragment(tmp_path: Path) -> None
 
     try:
         with TestClient(app) as client:
+            authenticate(client, repository, "fragment.pdf")
             answer_response = client.post(
                 "/quiz/fragment.pdf/answer",
                 data={"question_id": str(question.id), "selected_index": "2"},
@@ -209,6 +214,7 @@ def test_quiz_page_shows_question_progress_and_timer(tmp_path: Path) -> None:
 
     try:
         with TestClient(app) as client:
+            authenticate(client, repository, "progress.pdf")
             start_response = client.get("/quiz/progress.pdf")
             assert start_response.status_code == 200
             assert "Question 1 of 2" in start_response.text
@@ -244,6 +250,7 @@ def test_fill_blank_question_can_be_answered_with_text(tmp_path: Path) -> None:
 
     try:
         with TestClient(app) as client:
+            authenticate(client, repository, "capitals.pdf")
             quiz_response = client.get("/quiz/capitals.pdf")
             assert quiz_response.status_code == 200
             assert 'name="answer_text"' in quiz_response.text
@@ -285,6 +292,7 @@ def test_new_quiz_state_shuffles_question_order(
 
     try:
         with TestClient(app) as client:
+            authenticate(client, repository, "shuffled.pdf")
             response = client.get("/quiz/shuffled.pdf")
     finally:
         repository.close()
@@ -311,6 +319,7 @@ def test_delete_set_removes_it_from_home_page(tmp_path: Path) -> None:
 
     try:
         with TestClient(app) as client:
+            authenticate(client, repository, "old-set.pdf")
             before_delete = client.get("/")
             assert "old-set.pdf" in before_delete.text
 

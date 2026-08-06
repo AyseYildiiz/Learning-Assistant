@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="{{ language }}">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ t('profile_title') }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #1b2231;
+        --muted: #5e6b84;
+        --line: #d7deea;
+        --primary: #1d4ed8;
+        --surface: #ffffff;
+        --canvas: #eef2f9;
+        --success: #11653b;
+        --danger: #b42318;
+      }
+
+      [data-theme="dark"] {
+        color-scheme: dark;
+        --ink: #ecf1ff;
+        --muted: #a8b3cc;
+        --line: #2a3345;
+        --primary: #5f86ff;
+        --surface: #111827;
+        --canvas: #070b13;
+        --success: #5bd497;
+        --danger: #ff9e9e;
+      }
+
+      body { font: 16px/1.5 "Source Sans 3", sans-serif; margin: 0; padding: 32px; background: var(--canvas); color: var(--ink); }
+      .back-link {
+        position: fixed;
+        top: 16px;
+        left: 16px;
+        z-index: 21;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        width: 2.85rem;
+        height: 2.85rem;
+        border: 1px solid var(--line);
+        background: var(--surface);
+        color: var(--ink);
+        border-radius: 999px;
+        box-shadow: 0 8px 18px rgba(15, 24, 42, 0.22);
+        text-decoration: none;
+        font-size: 1.5rem;
+        font-weight: 900;
+        justify-content: center;
+      }
+      .card { max-width: 640px; margin: 48px auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+      h1 { margin-top: 0; font-family: "Space Grotesk", sans-serif; }
+      label { display: block; margin: 12px 0 6px; font-weight: 600 }
+      input[type="password"] { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+      .controls { display: flex; gap: 8px; margin-top: 14px }
+      .controls button { padding: 10px 14px; border-radius: 8px; border: 0; background: var(--primary); color: #fff; font-weight: 700 }
+      .hint { color: var(--muted); margin-top: 8px }
+      .message { margin-top: 12px; padding: 10px 12px; border-radius: 8px }
+      .message.success { background: #eaf8f0; color: var(--success) }
+      .message.error { background: #fff0ef; color: var(--danger) }
+    </style>
+  </head>
+  <body>
+    {% include "header_controls.html" %}
+    <a href="/" class="back-link" aria-label="{{ t('profile_back_to_home') }}" title="{{ t('profile_back_to_home') }}">&larr;</a>
+    <main class="card">
+      <h1>{{ t('profile_my_profile') }}</h1>
+      <p class="hint">{{ t('profile_change_password_hint') }}</p>
+      {% if error_message %}<p class="message error" role="alert">{{ error_message }}</p>{% endif %}
+      {% if success_message %}<p class="message success" role="status">{{ success_message }}</p>{% endif %}
+
+      <form method="post" action="/profile">
+        <label for="current-password">{{ t('profile_current_password_label') }}</label>
+        <input id="current-password" name="current_password" type="password" autocomplete="current-password" required />
+
+        <label for="new-password">{{ t('profile_new_password_label') }}</label>
+        <input id="new-password" name="new_password" type="password" autocomplete="new-password" required />
+
+        <label for="confirm-password">{{ t('profile_confirm_new_password_label') }}</label>
+        <input id="confirm-password" name="confirm_password" type="password" autocomplete="new-password" required />
+
+        <div class="controls">
+          <button type="submit">{{ t('profile_update_password_submit') }}</button>
+        </div>
+      </form>
+    </main>
+  </body>
+</html>

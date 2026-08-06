@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -35,13 +36,17 @@ def test_translate_formats_placeholders_per_language() -> None:
     assert translate("tr", "quiz_source_set", name="Bölüm 1") == "Kaynak set: Bölüm 1"
 
 
-def test_home_page_defaults_to_english(tmp_path: Path) -> None:
+def test_home_page_defaults_to_english(
+    tmp_path: Path, authenticate: Callable[..., int]
+) -> None:
     repository = _set_repository(tmp_path, "i18n-default.db")
     previous_repository = getattr(app.state, "repository", None)
     app.state.repository = repository
 
     try:
-        response = TestClient(app).get("/")
+        client = TestClient(app)
+        authenticate(client, repository)
+        response = client.get("/")
     finally:
         repository.close()
         if previous_repository is None:
@@ -54,13 +59,16 @@ def test_home_page_defaults_to_english(tmp_path: Path) -> None:
     assert "Learn from your PDFs" in response.text
 
 
-def test_setting_language_persists_across_requests(tmp_path: Path) -> None:
+def test_setting_language_persists_across_requests(
+    tmp_path: Path, authenticate: Callable[..., int]
+) -> None:
     repository = _set_repository(tmp_path, "i18n-switch.db")
     previous_repository = getattr(app.state, "repository", None)
     app.state.repository = repository
 
     try:
         client = TestClient(app)
+        authenticate(client, repository)
         switch_response = client.post(
             "/settings/language",
             data={"language": "tr", "next": "/"},
@@ -81,13 +89,16 @@ def test_setting_language_persists_across_requests(tmp_path: Path) -> None:
     assert "tek seferde bir sınav ile" in home_response.text
 
 
-def test_setting_an_unsupported_language_is_ignored(tmp_path: Path) -> None:
+def test_setting_an_unsupported_language_is_ignored(
+    tmp_path: Path, authenticate: Callable[..., int]
+) -> None:
     repository = _set_repository(tmp_path, "i18n-invalid.db")
     previous_repository = getattr(app.state, "repository", None)
     app.state.repository = repository
 
     try:
         client = TestClient(app)
+        authenticate(client, repository)
         client.post(
             "/settings/language",
             data={"language": "fr", "next": "/"},

@@ -8,6 +8,8 @@ from fastapi.testclient import TestClient
 from learning_assistant.main import app
 from learning_assistant.storage import SQLiteRepository
 
+from conftest import authenticate
+
 
 def _set_repository(tmp_path: Path, name: str) -> SQLiteRepository:
     repository = SQLiteRepository(tmp_path / name)
@@ -50,6 +52,7 @@ def test_learning_path_page_generates_once_and_caches(
 
     try:
         client = TestClient(app)
+        authenticate(client, repository, "chapter-1.pdf")
         first_response = client.get("/learning-path/chapter-1.pdf")
         second_response = client.get("/learning-path/chapter-1.pdf")
     finally:
@@ -86,7 +89,9 @@ def test_learning_path_page_shows_error_when_generation_fails(
     monkeypatch.setattr("learning_assistant.web.KSGatewayClient", FakeGateway)
 
     try:
-        response = TestClient(app).get("/learning-path/chapter-1.pdf")
+        client = TestClient(app)
+        authenticate(client, repository, "chapter-1.pdf")
+        response = client.get("/learning-path/chapter-1.pdf")
     finally:
         repository.close()
         if previous_repository is None:
@@ -125,6 +130,7 @@ def test_regenerate_learning_path_replaces_stored_content(
 
     try:
         client = TestClient(app)
+        authenticate(client, repository, "chapter-1.pdf")
         first_response = client.get("/learning-path/chapter-1.pdf")
         regenerate_response = client.post(
             "/learning-path/chapter-1.pdf/regenerate", follow_redirects=False
@@ -151,7 +157,9 @@ def test_delete_set_removes_document_text_and_learning_path(tmp_path: Path) -> N
     app.state.repository = repository
 
     try:
-        TestClient(app).post("/sets/chapter-1.pdf/delete")
+        client = TestClient(app)
+        authenticate(client, repository, "chapter-1.pdf")
+        client.post("/sets/chapter-1.pdf/delete")
         remaining_text = repository.get_document_text("chapter-1.pdf")
         remaining_path = repository.get_learning_path("chapter-1.pdf")
     finally:

@@ -173,3 +173,103 @@ def test_update_flashcard_review_advances_and_resets_boxes(tmp_path: Path) -> No
     assert promoted_flashcard.next_review_at == reviewed_at + timedelta(days=3)
     assert reset_flashcard.box_level == 1
     assert reset_flashcard.next_review_at == reviewed_at + timedelta(days=1)
+
+
+def test_create_user_and_look_up_by_username_and_id(tmp_path: Path) -> None:
+    repository = SQLiteRepository(tmp_path / "study.db")
+    try:
+        created = repository.create_user("alice", "hash", "salt")
+        by_username = repository.get_user_by_username("alice")
+        by_id = repository.get_user_by_id(created.id)
+        unknown_username = repository.get_user_by_username("unknown")
+    finally:
+        repository.close()
+
+    assert by_username is not None
+    assert by_username.id == created.id
+    assert by_id is not None
+    assert by_id.username == "alice"
+    assert unknown_username is None
+
+
+def test_create_user_rejects_duplicate_username(tmp_path: Path) -> None:
+    repository = SQLiteRepository(tmp_path / "study.db")
+    try:
+        repository.create_user("alice", "hash", "salt")
+        try:
+            repository.create_user("alice", "other-hash", "other-salt")
+            duplicate_raised = False
+        except ValueError:
+            duplicate_raised = True
+    finally:
+        repository.close()
+
+    assert duplicate_raised
+
+
+def test_update_user_password_changes_hash_and_salt(tmp_path: Path) -> None:
+    repository = SQLiteRepository(tmp_path / "study.db")
+    try:
+        created = repository.create_user("alice", "hash", "salt")
+        repository.update_user_password(created.id, "new-hash", "new-salt")
+        updated = repository.get_user_by_id(created.id)
+    finally:
+        repository.close()
+
+    assert updated is not None
+    assert updated.password_hash == "new-hash"
+    assert updated.salt == "new-salt"
+
+
+def test_set_ownership_scopes_source_pdfs_per_user(tmp_path: Path) -> None:
+    repository = SQLiteRepository(tmp_path / "study.db")
+    try:
+        alice = repository.create_user("alice", "hash", "salt")
+        bob = repository.create_user("bob", "hash", "salt")
+        repository.save_question(
+            source_pdf="alice-set.pdf",
+            question_text="Question",
+            options=["Answer"],
+            correct_index=0,
+        )
+        repository.save_question(
+            source_pdf="bob-set.pdf",
+            question_text="Question",
+            options=["Answer"],
+            correct_index=0,
+        )
+        repository.assign_set_owner("alice-set.pdf", alice.id)
+        repository.assign_set_owner("bob-set.pdf", bob.id)
+        alice_sets = repository.get_source_pdfs_for_user(alice.id)
+        bob_sets = repository.get_source_pdfs_for_user(bob.id)
+        alice_set_owner = repository.get_set_owner_user_id("alice-set.pdf")
+        missing_set_owner = repository.get_set_owner_user_id("missing.pdf")
+    finally:
+        repository.close()
+
+    assert alice_sets == ["alice-set.pdf"]
+    assert bob_sets == ["bob-set.pdf"]
+    assert alice_set_owner == alice.id
+    assert missing_set_owner is None
+
+
+def test_delete_set_also_removes_set_owner_row(tmp_path: Path) -> None:
+    repository = SQLiteRepository(tmp_path / "study.db")
+    try:
+        alice = repository.create_user("alice", "hash", "salt")
+        repository.save_question(
+            source_pdf="alice-set.pdf",
+            question_text="Question",
+            options=["Answer"],
+            correct_index=0,
+        )
+        repository.assign_set_owner("alice-set.pdf", alice.id)
+
+        deleted = repository.delete_set("alice-set.pdf")
+        owner_after_delete = repository.get_set_owner_user_id("alice-set.pdf")
+    finally:
+        repository.close()
+
+    assert deleted
+    assert owner_after_delete is None
+
