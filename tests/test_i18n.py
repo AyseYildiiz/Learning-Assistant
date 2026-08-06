@@ -78,7 +78,7 @@ def test_setting_language_persists_across_requests(tmp_path: Path) -> None:
             app.state.repository = previous_repository
 
     assert '<html lang="tr">' in home_response.text
-    assert "tek seferde bir soru ile" in home_response.text
+    assert "tek seferde bir sınav ile" in home_response.text
 
 
 def test_setting_an_unsupported_language_is_ignored(tmp_path: Path) -> None:

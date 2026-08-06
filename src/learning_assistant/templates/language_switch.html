@@ -50,12 +50,13 @@
   }
 </style>
 <form
+  id="language-switch-form"
   method="post"
   action="/settings/language"
   class="lang-switch"
   aria-label="{{ t('language_switch_label') }}"
 >
-  <input type="hidden" name="next" value="{{ request.url.path }}" />
+  <input type="hidden" name="next" value="{{ current_path }}" />
   <button
     type="submit"
     name="language"
@@ -73,3 +74,37 @@
     TR
   </button>
 </form>
+<script>
+  (function () {
+    const form = document.getElementById("language-switch-form");
+    if (!form) {
+      return;
+    }
+
+    // A full-page navigation would reset any <input type="file"> selection
+    // elsewhere on the page (e.g. the upload dropzone), so when files are
+    // already picked we submit the language change in the background instead
+    // and only update it in the UI on the next real navigation.
+    form.addEventListener("submit", function (event) {
+      const fileInput = document.getElementById("pdf-file");
+      const hasSelectedFiles = Boolean(fileInput?.files?.length);
+      if (!hasSelectedFiles) {
+        return;
+      }
+
+      const language = event.submitter ? event.submitter.value : null;
+      if (!language) {
+        return;
+      }
+
+      event.preventDefault();
+      const formData = new FormData(form);
+      formData.set("language", language);
+      fetch(form.action, { method: "POST", body: formData }).then(function () {
+        form.querySelectorAll(".lang-option").forEach(function (button) {
+          button.classList.toggle("lang-option--active", button.value === language);
+        });
+      });
+    });
+  })();
+</script>

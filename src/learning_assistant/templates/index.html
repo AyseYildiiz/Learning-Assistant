@@ -213,7 +213,7 @@
                   <a class="cta" href="/quiz/{{ study_set.encoded_id }}">{{ t('action_resume_quiz') }}</a>
                   <a href="/flashcards/{{ study_set.encoded_id }}">{{ t('action_flashcards') }}</a>
                   <a href="/learning-path/{{ study_set.encoded_id }}">{{ t('action_learning_path') }}</a>
-                  <form method="post" action="/sets/{{ study_set.encoded_id }}/delete" onsubmit="return confirm('{{ t('confirm_delete_set') }}');">
+                  <form method="post" action="/sets/{{ study_set.encoded_id }}/delete" class="delete-form" data-confirm-message="{{ t('confirm_delete_set') }}">
                     <button type="submit" class="danger">{{ t('action_delete') }}</button>
                   </form>
                 </div>
@@ -266,6 +266,14 @@
         } else {
           label.textContent = label.dataset.selectedTemplate.replace("{count}", files.length);
         }
+      });
+
+      document.querySelectorAll(".delete-form").forEach(function (form) {
+        form.addEventListener("submit", function (event) {
+          if (!confirm(form.dataset.confirmMessage)) {
+            event.preventDefault();
+          }
+        });
       });
     </script>
   </body>

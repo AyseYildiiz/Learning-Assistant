@@ -99,6 +99,10 @@ def _render_template(
         request=request,
         name=name,
         context={
+            # Some pages are rendered directly (no redirect) from a POST-only
+            # route, so request.url.path would point the language switcher
+            # at a URL that only accepts GET. Callers can override this.
+            "current_path": request.url.path,
             **context,
             "language": language,
             "t": functools.partial(translate, language),
@@ -828,6 +832,7 @@ def _render_quiz_page(
         request=request,
         name=template_name,
         context={
+            "current_path": f"/quiz/{quote(pdf_id, safe='')}",
             "pdf_id": pdf_id,
             "display_name": _set_display_name(pdf_id),
             "answer_url": f"/quiz/{quote(pdf_id, safe='')}/answer",
@@ -884,6 +889,7 @@ def _render_home_page(
         request=request,
         name="index.html",
         context={
+            "current_path": "/",
             "study_sets": _study_set_view_models(repository.get_source_pdfs()),
             "error_message": error_message,
             "success_message": success_message,
